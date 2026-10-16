@@ -1,0 +1,548 @@
+---
+// Portada: campo de batalla. Dos chatbots marchan, chocan, el verboso gana
+// y el breve sale volando. Se repite en bucle.
+import Unit from "./Unit.astro";
+
+const words = "¿Qué respuesta prefiere un humano?".split(" ");
+let n = 0;
+---
+
+<header class="hero">
+  <div class="sky" aria-hidden="true">
+    <span class="sun"></span>
+    <span class="cloud c1"></span>
+    <span class="cloud c2"></span>
+    <span class="cloud c3"></span>
+  </div>
+
+  <div class="intro">
+    <span class="chip tag">Simulador de batallas totalmente preciso</span>
+    <h1 aria-label={words.join(" ")}>
+      {words.map((w) => (
+        <span class="word" aria-hidden="true">
+          {[...w].map((ch) => <span class="ch" style={`--i:${n++}`}>{ch}</span>)}
+        </span>
+      ))}
+    </h1>
+    <p class="lede">
+      Análisis exploratorio de <strong>57,470 batallas</strong> de Chatbot Arena. Dos
+      modelos responden, un humano vota. ¿Quién gana y por qué?
+    </p>
+  </div>
+
+  <div class="field" aria-hidden="true">
+    <span class="hill h1"></span>
+    <span class="hill h2"></span>
+
+    <div class="fighter fa">
+      <span class="bubble ba">Aquí tienes 1,241 caracteres con listas, <b>negritas</b> y…</span>
+      <Unit team="a" size={96} idle="walk" hat="helmet" weapon="sword" />
+    </div>
+    <div class="fighter fb">
+      <span class="bubble bb">ok.</span>
+      <Unit team="b" size={96} idle="walk" hat="viking" weapon="club" mood="angry" />
+    </div>
+    <span class="pow">¡POW!</span>
+    <span class="ground"></span>
+  </div>
+
+  <div class="votes" aria-hidden="true">
+    <span class="vote va">A es mejor</span>
+    <span class="vote">Empate</span>
+    <span class="vote">B es mejor</span>
+  </div>
+
+  <div class="cta">
+    <a class="btn" href="#contexto">⚔ Iniciar batalla</a>
+    <p class="authors">Javier López · Pedro Ávila · Brandon Rivera<br />Grupo 5 · UVG · 13 sep 2026</p>
+  </div>
+</header>
+
+<style>
+  .hero {
+    position: relative;
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+    min-height: 100svh;
+    padding: 70px 18px 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.2rem;
+    background: linear-gradient(180deg, var(--sky) 0%, var(--sky-light) 62%, var(--field) 100%);
+    overflow: hidden;
+    text-align: center;
+  }
+
+  /* ---------- cielo ---------- */
+  .sky {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .sun {
+    position: absolute;
+    top: 9%;
+    right: 9%;
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    background: var(--gold);
+    border: 3px solid var(--ink);
+    box-shadow: 0 0 0 14px rgb(255 200 61 / 0.3);
+    animation: sun 4s ease-in-out infinite alternate;
+  }
+
+  .cloud {
+    position: absolute;
+    width: 120px;
+    height: 40px;
+    border-radius: 40px;
+    background: #fff;
+    border: 3px solid var(--ink);
+    animation: drift linear infinite;
+  }
+
+  .cloud::before {
+    content: "";
+    position: absolute;
+    left: 22px;
+    bottom: 18px;
+    width: 56px;
+    height: 46px;
+    border-radius: 50%;
+    background: #fff;
+    border: 3px solid var(--ink);
+    border-bottom-color: transparent;
+    border-right-color: transparent;
+    rotate: 45deg;
+  }
+
+  .c1 {
+    top: 14%;
+    animation-duration: 38s;
+    animation-delay: -6s;
+  }
+  .c2 {
+    top: 32%;
+    scale: 0.7;
+    animation-duration: 52s;
+    animation-delay: -30s;
+  }
+  .c3 {
+    top: 6%;
+    scale: 0.55;
+    animation-duration: 45s;
+    animation-delay: -18s;
+  }
+
+  /* ---------- título ---------- */
+  .intro {
+    position: relative;
+    max-width: 720px;
+  }
+
+  .tag {
+    animation: drop-in 0.8s var(--pop) both;
+  }
+
+  h1 {
+    margin: 1rem 0 0.8rem;
+    font-size: clamp(2.6rem, 10vw, 4.8rem);
+    line-height: 1.02;
+    color: #fff;
+    text-shadow:
+      3px 0 0 var(--ink),
+      -3px 0 0 var(--ink),
+      0 3px 0 var(--ink),
+      0 -3px 0 var(--ink),
+      2px 2px 0 var(--ink),
+      -2px -2px 0 var(--ink),
+      2px -2px 0 var(--ink),
+      -2px 2px 0 var(--ink),
+      0 8px 0 var(--ink);
+  }
+
+  .word {
+    display: inline-block;
+    white-space: nowrap;
+    margin: 0 0.12em;
+  }
+
+  .ch {
+    display: inline-block;
+    animation:
+      letter-in 0.7s var(--pop) both,
+      letter-bob 2.6s ease-in-out infinite;
+    animation-delay:
+      calc(var(--i) * 40ms + 0.2s),
+      calc(var(--i) * 110ms);
+  }
+
+  .word:nth-child(5) .ch {
+    color: var(--gold);
+  }
+
+  .lede {
+    max-width: 30em;
+    margin: 0 auto;
+    animation: fade-up 0.8s var(--ease) 1.2s both;
+  }
+
+  /* ---------- campo de batalla ---------- */
+  .field {
+    position: relative;
+    width: min(640px, 100%);
+    height: 300px;
+    animation: fade-up 0.8s var(--ease) 1.4s both;
+  }
+
+  .ground {
+    position: absolute;
+    left: -6%;
+    right: -6%;
+    bottom: 0;
+    height: 44px;
+    background: var(--grass);
+    border: 3px solid var(--ink);
+    border-radius: 50% 50% 14px 14px / 30px 30px 14px 14px;
+    box-shadow: inset 0 -10px 0 var(--grass-dark);
+  }
+
+  .hill {
+    position: absolute;
+    bottom: 20px;
+    border-radius: 50% 50% 0 0;
+    background: #a6d97c;
+    border: 3px solid var(--ink);
+    border-bottom: 0;
+  }
+
+  .h1 {
+    left: -4%;
+    width: 46%;
+    height: 90px;
+  }
+
+  .h2 {
+    right: -2%;
+    width: 38%;
+    height: 66px;
+  }
+
+  .fighter {
+    position: absolute;
+    bottom: 26px;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .fa {
+    animation: march-a 6s linear infinite;
+  }
+
+  .fb {
+    animation: march-b 6s linear infinite;
+  }
+
+  .fb :global(.unit) {
+    scale: -1 1;
+  }
+
+  .bubble {
+    position: absolute;
+    bottom: 100%;
+    margin-bottom: 6px;
+    padding: 6px 10px;
+    font-size: 0.75rem;
+    line-height: 1.25;
+    background: #fff;
+    border: 3px solid var(--ink);
+    border-radius: 12px;
+    box-shadow: 0 3px 0 var(--ink);
+    white-space: nowrap;
+  }
+
+  .ba {
+    left: 0;
+    width: 150px;
+    white-space: normal;
+    text-align: left;
+    animation: bubble-a 6s var(--pop) infinite;
+  }
+
+  .bb {
+    animation: bubble-b 6s var(--pop) infinite;
+  }
+
+  .pow {
+    position: absolute;
+    left: 46%;
+    bottom: 90px;
+    z-index: 3;
+    font-family: var(--display);
+    font-size: 2rem;
+    color: var(--gold);
+    text-shadow:
+      2px 2px 0 var(--ink),
+      -2px -2px 0 var(--ink),
+      2px -2px 0 var(--ink),
+      -2px 2px 0 var(--ink),
+      0 5px 0 var(--ink);
+    transform: scale(0);
+    animation: pow 6s var(--pop) infinite;
+  }
+
+  /* ---------- botones de voto ---------- */
+  .votes {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    animation: fade-up 0.8s var(--ease) 1.6s both;
+  }
+
+  .vote {
+    font-family: var(--display);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.35em 1em;
+    background: var(--paper);
+    border: 3px solid var(--ink);
+    border-radius: 12px;
+    box-shadow: 0 4px 0 var(--ink);
+  }
+
+  .vote.va {
+    animation: vote-a 6s var(--pop) infinite;
+  }
+
+  .cta {
+    position: relative;
+    animation: fade-up 0.8s var(--ease) 1.8s both;
+  }
+
+  .authors {
+    margin: 1.1rem 0 0;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  /* ---------- keyframes ---------- */
+  @keyframes letter-in {
+    from {
+      transform: translateY(-120px) rotate(-30deg) scale(0.4);
+      opacity: 0;
+    }
+  }
+
+  @keyframes letter-bob {
+    0%,
+    100% {
+      translate: 0 0;
+      rotate: 0deg;
+    }
+    50% {
+      translate: 0 -5px;
+      rotate: -3deg;
+    }
+  }
+
+  @keyframes drop-in {
+    from {
+      transform: translateY(-60px) rotate(8deg);
+      opacity: 0;
+    }
+  }
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+  }
+
+  @keyframes sun {
+    to {
+      transform: rotate(14deg) scale(1.06);
+    }
+  }
+
+  @keyframes drift {
+    from {
+      left: -160px;
+    }
+    to {
+      left: 105%;
+    }
+  }
+
+  @keyframes march-a {
+    0% {
+      left: 2%;
+      opacity: 0;
+    }
+    5% {
+      opacity: 1;
+    }
+    36% {
+      left: 33%;
+    }
+    40% {
+      left: 37%;
+      transform: none;
+    }
+    46% {
+      left: 34%;
+      transform: none;
+    }
+    54% {
+      transform: translateY(-34px) rotate(-8deg);
+    }
+    62% {
+      transform: none;
+    }
+    70% {
+      transform: translateY(-34px) rotate(8deg);
+    }
+    78%,
+    88% {
+      left: 34%;
+      transform: none;
+      opacity: 1;
+    }
+    96%,
+    100% {
+      left: 34%;
+      opacity: 0;
+    }
+  }
+
+  @keyframes march-b {
+    0% {
+      left: 84%;
+      opacity: 0;
+      transform: none;
+    }
+    5% {
+      opacity: 1;
+    }
+    36% {
+      left: 54%;
+      transform: none;
+    }
+    40% {
+      left: 52%;
+      transform: none;
+    }
+    58% {
+      left: 76%;
+      transform: translateY(-150px) rotate(540deg);
+    }
+    72% {
+      left: 104%;
+      transform: translateY(30px) rotate(900deg);
+      opacity: 1;
+    }
+    73%,
+    100% {
+      left: 104%;
+      opacity: 0;
+      transform: none;
+    }
+  }
+
+  @keyframes bubble-a {
+    0%,
+    6% {
+      transform: scale(0);
+    }
+    12%,
+    40% {
+      transform: none;
+    }
+    46%,
+    100% {
+      transform: scale(0);
+    }
+  }
+
+  @keyframes bubble-b {
+    0%,
+    16% {
+      transform: scale(0);
+    }
+    22%,
+    38% {
+      transform: none;
+    }
+    42%,
+    100% {
+      transform: scale(0);
+    }
+  }
+
+  @keyframes pow {
+    0%,
+    38% {
+      transform: scale(0) rotate(-20deg);
+    }
+    42% {
+      transform: scale(1.3) rotate(-8deg);
+    }
+    52% {
+      transform: scale(1) rotate(-8deg);
+    }
+    58%,
+    100% {
+      transform: scale(0) rotate(10deg);
+    }
+  }
+
+  @keyframes vote-a {
+    0%,
+    46% {
+      background: var(--paper);
+      color: var(--ink);
+      transform: none;
+    }
+    50% {
+      transform: scale(1.18) rotate(-3deg);
+    }
+    54%,
+    88% {
+      background: var(--a);
+      color: #fff;
+      transform: none;
+    }
+    94%,
+    100% {
+      background: var(--paper);
+      color: var(--ink);
+    }
+  }
+
+  @media (max-width: 520px) {
+    .tag {
+      font-size: 0.68rem;
+    }
+    .sun {
+      top: 7%;
+      right: -20px;
+      width: 64px;
+      height: 64px;
+    }
+    .field {
+      height: 280px;
+    }
+    .ba {
+      width: 128px;
+      font-size: 0.68rem;
+    }
+  }
+</style>

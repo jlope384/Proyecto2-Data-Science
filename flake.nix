@@ -62,6 +62,8 @@
               pkgs.pyright
               pkgs.chromium
               pkgs.chromedriver
+
+              pkgs.nodejs
             ];
 
             shellHook = ''

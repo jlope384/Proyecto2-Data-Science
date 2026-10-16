@@ -1,0 +1,1225 @@
+---
+import "../styles/global.css";
+import Hero from "../components/Hero.astro";
+import Section from "../components/Section.astro";
+import Figure from "../components/Figure.astro";
+import Unit from "../components/Unit.astro";
+
+const findings = [
+  "El dataset es limpio y está balanceado entre las 3 clases: la dificultad está en el empate (30.9%) y en que la señal útil está en texto libre.",
+  "La longitud relativa de las respuestas es el factor individual más fuerte (61.5% de las decididas), seguida del formato markdown.",
+  "Los empates ocurren cuando las respuestas son similares en longitud o idénticas.",
+  "El sesgo de posición es real pero leve (~1 punto porcentual).",
+  "La identidad del modelo explica mucho (18.6%–76.0% de victorias), pero no está disponible en el set de prueba.",
+  "Las variables de superficie tienen correlación débil con el objetivo (|ρ| ≤ 0.24): se necesita representar el contenido del texto.",
+];
+
+const nextSteps = [
+  "Modelo baseline con las variables ya derivadas (longitud, formato, turnos), evaluado con log-loss multiclase.",
+  "Representar el contenido: TF-IDF y luego embeddings o fine-tuning de un transformer (DeBERTa, Gemma…).",
+  "Validación cruzada sin fuga de información entre filas que compartan prompt o modelos.",
+  "Corregir el sesgo de posición promediando predicciones con A/B intercambiados.",
+  "Tratar aparte las batallas con respuesta nula y las de same_model.",
+];
+---
+
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chatbot Arena · EDA</title>
+    <meta
+      name="description"
+      content="Análisis exploratorio de la preferencia humana en batallas de Chatbot Arena — Grupo 5, UVG."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800;900&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="hp" aria-hidden="true">
+      <span class="heart">♥</span>
+      <div class="hp-bar"><i id="hp"></i><span>Progreso de campaña <b id="hp-pct">0%</b></span></div>
+    </div>
+
+    <main>
+      <Hero />
+
+      <!-- 1. Contexto -->
+      <Section id="contexto" num="1" kicker="El campo de batalla" title="De benchmarks estáticos a preferencia humana">
+        <p data-reveal>
+          En <strong>Chatbot Arena</strong> (LMSYS), un usuario recibe dos respuestas
+          anónimas a su prompt y vota cuál prefiere, o declara empate. Con millones de
+          votos se construye un ranking tipo Elo, y esos votos alimentan el entrenamiento
+          de <em>reward models</em> (RLHF).
+        </p>
+        <p data-reveal>
+          El problema: recolectar votos humanos es costoso, y las personas votan con
+          sesgos conocidos — <strong>verbosidad, formato y posición</strong>.
+        </p>
+        <div class="mission panel bg-parchment" data-reveal="pop">
+          <span class="chip">Misión principal</span>
+          <p>
+            ¿Se puede predecir qué respuesta preferirá un humano (A, B o empate) a partir
+            del texto? ¿Qué características explican esa preferencia?
+          </p>
+          <Unit team="a" size={64} hat="straw" weapon="flag" class="mission-unit" />
+        </div>
+      </Section>
+
+      <!-- 2. Objetivos -->
+      <Section id="objetivos" num="2" kicker="Objetivos de la misión" title="Qué buscamos">
+        <p data-reveal>
+          Comprender la estructura de las batallas y los factores asociados a la
+          preferencia humana, como base para un futuro modelo predictivo.
+        </p>
+        <ul class="quests" data-stagger>
+          <li class="bg-notebook" data-reveal="left"><span class="check"></span>Describir y limpiar el dataset, y derivar variables cuantitativas del texto.</li>
+          <li class="bg-notebook" data-reveal="left"><span class="check"></span>Cuantificar la relación entre la preferencia y longitud, formato, turnos y modelo.</li>
+          <li class="bg-notebook" data-reveal="left"><span class="check"></span>Identificar los sesgos en los votos (verbosidad, posición, empates) y su magnitud.</li>
+        </ul>
+      </Section>
+
+      <!-- 3. Datos -->
+      <Section id="datos" num="3" kicker="Reclutamiento" title="Origen, estructura y limpieza">
+        <div class="stats" data-stagger>
+          <div class="stat panel bg-grid" data-reveal="pop"><b data-count="57477">0</b><span>batallas originales</span></div>
+          <div class="stat panel bg-grid" data-reveal="pop"><b><span data-count="9">0</span>→<span data-count="41">0</span></b><span>columnas</span></div>
+          <div class="stat panel bg-grid" data-reveal="pop"><b data-count="7">0</b><span>duplicados eliminados</span></div>
+          <div class="stat panel bg-grid" data-reveal="pop"><b data-count="0">0</b><span>valores faltantes</span></div>
+        </div>
+        <p data-reveal>
+          Cada fila es una batalla: prompt + dos respuestas (modelo A y B) + el voto. Se
+          decodificó el texto JSON por turno y se verificó que hay exactamente un ganador
+          en el 100% de las filas. Las respuestas nulas (~0.2%) se conservaron como
+          indicador: son informativas.
+        </p>
+      </Section>
+
+      <!-- 4. Variables -->
+      <Section id="variables" num="4" kicker="Marcador" title="Un objetivo balanceado, variables con cola larga">
+        <p data-reveal>
+          <strong>57,470 batallas</strong> y <strong>64 modelos</strong>. Las tres clases
+          del objetivo están casi igual de representadas:
+        </p>
+        <div class="score panel bg-field" data-anim>
+          <div class="stack">
+            <i style="--w:34.9%; --c:var(--a)"></i>
+            <i style="--w:30.9%; --c:var(--tie)"></i>
+            <i style="--w:34.2%; --c:var(--b)"></i>
+          </div>
+          <div class="team">
+            <b><span data-count="34.9" data-decimals="1">0</span>%</b>
+            <span>Gana A</span>
+            <Unit team="a" size={64} hat="helmet" weapon="sword" />
+          </div>
+          <div class="team">
+            <b><span data-count="30.9" data-decimals="1">0</span>%</b>
+            <span>Empate</span>
+            <Unit team="tie" size={64} hat="straw" mood="wow" />
+          </div>
+          <div class="team">
+            <b><span data-count="34.2" data-decimals="1">0</span>%</b>
+            <span>Gana B</span>
+            <Unit team="b" size={64} hat="viking" weapon="club" mood="angry" />
+          </div>
+        </div>
+        <p data-reveal>
+          Las longitudes y el formato tienen <strong>asimetría positiva muy fuerte</strong>:
+          la longitud media de una respuesta es 1,331 caracteres, pero la mediana es 1,036
+          y el máximo 53,299. Por eso se priorizan medianas y escalas logarítmicas.
+        </p>
+        <Figure
+          src="/figs/objetivo-turnos-modelos.png"
+          alt="Distribución del objetivo, número de turnos y los 20 modelos más frecuentes"
+          caption="La mayoría de conversaciones tiene un solo turno; gpt-4-1106-preview es el modelo más frecuente."
+        />
+      </Section>
+
+      <!-- 5. Sesgos -->
+      <Section id="sesgos" num="5" kicker="Armas secretas del voto" title="La respuesta más larga suele ganar">
+        <div class="duel panel bg-field" data-anim>
+          <div class="duelist">
+            <Unit team="a" size={84} hat="crown" weapon="scroll" />
+            <span class="name">El Verboso</span>
+          </div>
+          <div class="duel-score">
+            <b class="big"><span data-count="61.5" data-decimals="1">0</span>%</b>
+            <p>de las batallas decididas las gana la respuesta <strong>más larga</strong></p>
+          </div>
+          <div class="duelist">
+            <Unit team="b" size={84} hat="straw" mood="sad" />
+            <span class="note">ok.</span>
+            <span class="name">El Breve</span>
+          </div>
+        </div>
+
+        <div class="meters" data-anim>
+          <div class="meter"><span>Más larga gana</span><i style="--w:61.5%; --c:var(--a)"></i><b>61.5%</b></div>
+          <div class="meter"><span>…si es 5× más larga</span><i style="--w:68.7%; --c:var(--a-dark)"></i><b>68.7%</b></div>
+          <div class="meter coin"><span>Lanzar una moneda</span><i style="--w:50%; --c:var(--tie)"></i><b>50%</b></div>
+        </div>
+        <Figure
+          src="/figs/verbosidad.png"
+          alt="Probabilidad de que gane la respuesta más larga según la razón de longitudes"
+          caption="ρ de Spearman(len_diff, objetivo) = 0.241 — la correlación más fuerte de todas las variables derivadas."
+          tilt={1}
+        />
+
+        <h3 class="sub" data-reveal>Arma #2 · Formato markdown</h3>
+        <p data-reveal>
+          Las respuestas con más formato (listas, encabezados, negritas) también ganan más.
+          Está correlacionado con la longitud, y los empates bajan con más turnos.
+        </p>
+        <div class="meters" data-anim>
+          <div class="meter"><span>Más formato</span><i style="--w:45.5%; --c:var(--a)"></i><b>~46%</b></div>
+          <div class="meter"><span>Menos formato</span><i style="--w:26.5%; --c:var(--b)"></i><b>~27%</b></div>
+        </div>
+
+        <h3 class="sub" data-reveal>Arma #3 · La posición</h3>
+        <p data-reveal>
+          Los modelos se asignan al azar a A o B, así que sin sesgo la cuerda no debería
+          moverse. Se movió. Un poquito.
+        </p>
+        <div class="tug panel bg-field" data-anim>
+          <div class="tug-score">
+            <b class="ta">A · 50.5%</b>
+            <span>p = 0.038</span>
+            <b class="tb">49.5% · B</b>
+          </div>
+          <div class="tug-field">
+            <div class="crew crew-a">
+              <Unit team="a" size={40} idle="pull" />
+              <Unit team="a" size={40} idle="pull" />
+              <Unit team="a" size={40} idle="pull" />
+            </div>
+            <div class="rope-wrap">
+              <span class="rope"></span>
+              <span class="flag"></span>
+            </div>
+            <span class="midline"></span>
+            <div class="crew crew-b">
+              <Unit team="b" size={40} idle="pull" />
+              <Unit team="b" size={40} idle="pull" />
+              <Unit team="b" size={40} idle="pull" />
+            </div>
+          </div>
+        </div>
+        <p data-reveal>
+          Estadísticamente significativo, pero de apenas ~1 punto: mucho menor que el
+          efecto de la longitud.
+        </p>
+      </Section>
+
+      <!-- 6. Modelo -->
+      <Section id="modelo" num="6" kicker="Lista de unidades" title="Quién responde importa — mucho">
+        <p data-reveal>Entre los 58 modelos con al menos 300 batallas:</p>
+        <div class="roster" data-stagger>
+          <div class="card panel champ bg-rays" data-reveal="pop">
+            <span class="chip">Campeón</span>
+            <Unit team="a" size={96} hat="crown" weapon="sword" />
+            <b class="big"><span data-count="76" data-decimals="1">0</span>%</b>
+            <span class="model">gpt-4-1106-preview</span>
+          </div>
+          <div class="card panel weak bg-rays" data-reveal="pop">
+            <span class="chip">Carne de cañón</span>
+            <Unit team="b" size={60} hat="straw" mood="sad" />
+            <b class="big"><span data-count="18.6" data-decimals="1">0</span>%</b>
+            <span class="model">chatglm2-6b</span>
+          </div>
+        </div>
+        <Figure
+          src="/figs/winrate-modelos.png"
+          alt="Tasa de victoria por modelo"
+          caption="Tasa de victoria por modelo. Esta información no está disponible en el set de prueba."
+          narrow
+        />
+        <p data-reveal>
+          Y los modelos que escriben más tienden a ganar más: la correlación de Spearman
+          entre la longitud mediana del modelo y su tasa de victoria es{" "}
+          <strong>0.589</strong>, con excepciones notables.
+        </p>
+        <Figure
+          src="/figs/verbosos-ganan.png"
+          alt="Longitud mediana del modelo contra su tasa de victoria"
+          caption="¿Los modelos más verbosos ganan más? En general sí."
+          narrow
+          tilt={1.5}
+        />
+      </Section>
+
+      <!-- 7. Correlaciones y atípicos -->
+      <Section id="correlaciones" num="7" kicker="Inteligencia" title="Señales débiles, unidades gigantes">
+        <p data-reveal>Correlación (Spearman) de cada variable con el objetivo:</p>
+        <div class="meters" data-anim>
+          <div class="meter"><span>len_diff</span><i style="--w:96%; --c:var(--a)"></i><b>0.24</b></div>
+          <div class="meter"><span>len_ratio</span><i style="--w:88%; --c:var(--a)"></i><b>0.22</b></div>
+          <div class="meter"><span>el resto</span><i style="--w:38%; --c:var(--tie)"></i><b>&lt; 0.10</b></div>
+        </div>
+        <Figure
+          src="/figs/correlaciones.png"
+          alt="Matriz de correlaciones entre variables derivadas"
+          caption="Las variables del mismo lado (longitud, palabras, formato) son redundantes entre sí."
+          narrow
+        />
+
+        <div class="giant panel bg-mountains" data-anim>
+          <div class="giant-army" aria-hidden="true">
+            <Unit team="a" size={150} hat="viking" weapon="club" mood="angry" class="big-unit" />
+            <Unit team="b" size={38} mood="wow" />
+            <Unit team="b" size={38} mood="wow" />
+          </div>
+          <div>
+            <b class="big" data-count="822">0</b>
+            <p>
+              batallas tienen una respuesta por encima del percentil 99 (~6,800
+              caracteres), sobre todo de modelos GPT-4. Ahí gana A el{" "}
+              <strong>39.7%</strong> y solo hay <strong>25.3%</strong> de empates. No se
+              eliminan: son reales y siguen el patrón de que la longitud favorece la
+              victoria.
+            </p>
+          </div>
+        </div>
+      </Section>
+
+      <!-- 8. Conclusiones -->
+      <Section id="conclusiones" num="8" kicker="Resumen de batalla" title="Hallazgos principales">
+        <ul class="loot" data-stagger>
+          {findings.map((f) => <li data-reveal="left"><span class="star">★</span>{f}</li>)}
+        </ul>
+
+        <div class="victory" data-anim id="victory">
+          <div class="confetti" aria-hidden="true"></div>
+          <h2 class="victory-title">¡Victoria!<small>(matizada)</small></h2>
+          <div class="victory-units" aria-hidden="true">
+            <Unit team="a" size={64} hat="helmet" weapon="flag" />
+            <Unit team="tie" size={64} hat="straw" mood="wow" />
+            <Unit team="b" size={64} hat="viking" weapon="club" />
+          </div>
+          <div class="answer panel bg-parchment">
+            <span class="chip">¿Se puede predecir la preferencia humana?</span>
+            <p>
+              Los sesgos documentados en la literatura (Zheng et al., 2023) se confirman
+              con datos reales, pero las variables de superficie no bastan — la preferencia
+              depende sobre todo del <em>contenido</em>.
+            </p>
+          </div>
+        </div>
+
+        <h3 class="sub" data-reveal>Próxima campaña</h3>
+        <ol class="campaign" data-stagger>
+          {nextSteps.map((s) => <li data-reveal="left">{s}</li>)}
+        </ol>
+      </Section>
+
+      <footer class="refs">
+        <h3 data-reveal>Referencias</h3>
+        <ul data-stagger>
+          <li data-reveal>
+            Chiang, W.-L. et al. (2024). <i>Chatbot Arena: An Open Platform for Evaluating
+            LLMs by Human Preference.</i> ICML.{" "}
+            <a href="https://arxiv.org/abs/2403.04132">arXiv:2403.04132</a>
+          </li>
+          <li data-reveal>
+            Zheng, L. et al. (2023). <i>Judging LLM-as-a-Judge with MT-Bench and Chatbot
+            Arena.</i> NeurIPS. <a href="https://arxiv.org/abs/2306.05685">arXiv:2306.05685</a>
+          </li>
+          <li data-reveal>
+            Kaggle. <i>LMSYS – Chatbot Arena Human Preference Predictions.</i>{" "}
+            <a href="https://www.kaggle.com/competitions/lmsys-chatbot-arena">kaggle.com</a>
+          </li>
+        </ul>
+        <div class="bye" data-reveal="pop">
+          <p>¡Gracias por jugar!</p>
+          <a class="btn btn-blue" href="#">↺ Volver a jugar</a>
+        </div>
+        <p class="hint">Psst: haz click en cualquier unidad.</p>
+      </footer>
+    </main>
+
+    <style>
+      .sub {
+        font-size: 1.6rem;
+        margin: 3.5rem 0 0.8rem;
+      }
+
+      .big {
+        font-family: var(--display);
+        font-weight: 400;
+        font-size: clamp(2.8rem, 11vw, 4rem);
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* misión */
+      .mission {
+        position: relative;
+        margin: 2.5rem 0 1rem;
+        padding: 1.6rem;
+        padding-right: 90px;
+        rotate: -1deg;
+      }
+
+      .mission p {
+        margin: 0.8rem 0 0;
+        font-family: var(--display);
+        font-size: 1.35rem;
+        line-height: 1.3;
+      }
+
+      .mission :global(.mission-unit) {
+        position: absolute;
+        right: 14px;
+        bottom: -10px;
+      }
+
+      /* objetivos */
+      .quests,
+      .loot {
+        list-style: none;
+        padding: 0;
+        margin: 1.5rem 0;
+      }
+
+      .quests li {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        margin-bottom: 12px;
+        padding: 0.9rem 1rem;
+        border: 3px solid var(--ink);
+        border-radius: 14px;
+        box-shadow: 0 4px 0 var(--ink);
+      }
+
+      .check {
+        position: relative;
+        flex: 0 0 auto;
+        width: 28px;
+        height: 28px;
+        margin-top: 1px;
+        border: 3px solid var(--ink);
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      .check::after {
+        content: "";
+        position: absolute;
+        left: 7px;
+        top: 1px;
+        width: 8px;
+        height: 15px;
+        border: solid var(--grass-dark);
+        border-width: 0 5px 5px 0;
+        rotate: 45deg;
+        scale: 0;
+        transition: scale 0.5s var(--pop);
+        transition-delay: calc(var(--i, 0) * 110ms + 0.5s);
+      }
+
+      li:global(.is-visible) .check::after {
+        scale: 1;
+      }
+
+      /* reclutamiento */
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 14px;
+        margin-bottom: 2rem;
+      }
+
+      .stat {
+        padding: 1rem 1.1rem;
+      }
+
+      .stat:nth-child(odd) {
+        rotate: -1.5deg;
+      }
+
+      .stat:nth-child(even) {
+        rotate: 1.5deg;
+      }
+
+      .stat b {
+        display: block;
+        font-family: var(--display);
+        font-weight: 400;
+        font-size: 2.2rem;
+        line-height: 1.1;
+        color: var(--a-dark);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .stat > span {
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+
+      /* marcador */
+      .score {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin: 1.5rem 0 2rem;
+        padding: 1.2rem 1rem 0.6rem;
+        text-align: center;
+      }
+
+      .team {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .team b {
+        font-family: var(--display);
+        font-weight: 400;
+        font-size: 1.9rem;
+        line-height: 1.1;
+      }
+
+      .team > span {
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+
+      .stack {
+        grid-column: 1 / -1;
+        display: flex;
+        height: 22px;
+        margin-bottom: 0.6rem;
+        border: 3px solid var(--ink);
+        border-radius: 999px;
+        overflow: hidden;
+        background: #fff;
+      }
+
+      .stack i {
+        flex: 0 0 var(--w);
+        background: var(--c);
+        transform: scaleY(0);
+        transition: transform 0.6s var(--pop);
+      }
+
+      .stack i + i {
+        border-left: 3px solid var(--ink);
+      }
+
+      .stack i:nth-child(2) {
+        transition-delay: 0.15s;
+      }
+
+      .stack i:nth-child(3) {
+        transition-delay: 0.3s;
+      }
+
+      .score:global(.is-visible) .stack i {
+        transform: none;
+      }
+
+      /* duelo verboso vs breve */
+      .duel {
+        display: grid;
+        grid-template-columns: 1fr 1.3fr 1fr;
+        align-items: end;
+        gap: 10px;
+        padding: 1.4rem 1rem 0.5rem;
+        text-align: center;
+      }
+
+      .duelist {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .name {
+        font-family: var(--display);
+        font-size: 1rem;
+        margin-top: -0.2rem;
+        color: #fff;
+        text-shadow:
+          2px 0 0 var(--ink),
+          -2px 0 0 var(--ink),
+          0 2px 0 var(--ink),
+          0 -2px 0 var(--ink);
+      }
+
+      .note {
+        position: absolute;
+        top: 58%;
+        right: 62%;
+        padding: 0 6px;
+        font-size: 0.75rem;
+        background: #fff;
+        border: 3px solid var(--ink);
+        border-radius: 6px;
+      }
+
+      .duel-score {
+        align-self: center;
+      }
+
+      .duel-score {
+        align-self: start;
+      }
+
+      .duel-score p {
+        margin: 0.5rem 0 4.4rem;
+        padding: 0.4rem 0.7rem;
+        font-size: 0.9rem;
+        line-height: 1.35;
+        background: rgb(255 250 240 / 0.9);
+        border: 3px solid var(--ink);
+        border-radius: 12px;
+      }
+
+      /* barras tipo stat de unidad */
+      .meters {
+        display: grid;
+        gap: 12px;
+        margin: 1.8rem 0 2rem;
+      }
+
+      .meter {
+        display: grid;
+        grid-template-columns: 9.5rem 1fr 3.6rem;
+        align-items: center;
+        gap: 12px;
+        font-size: 0.9rem;
+      }
+
+      .meter i {
+        position: relative;
+        height: 20px;
+        border: 3px solid var(--ink);
+        border-radius: 999px;
+        background: #fff;
+        overflow: hidden;
+      }
+
+      .meter i::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        width: var(--w);
+        background: var(--c);
+        border-right: 3px solid var(--ink);
+        box-shadow: inset 0 -5px 0 rgb(0 0 0 / 0.18);
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 1.1s var(--pop);
+      }
+
+      .meter:nth-child(2) i::before {
+        transition-delay: 0.15s;
+      }
+
+      .meter:nth-child(3) i::before {
+        transition-delay: 0.3s;
+      }
+
+      .meters:global(.is-visible) i::before {
+        transform: none;
+      }
+
+      .meter b {
+        font-family: var(--display);
+        font-weight: 400;
+        font-size: 1.15rem;
+      }
+
+      .coin span,
+      .coin b {
+        color: var(--muted);
+      }
+
+      /* tira y afloja */
+      .tug {
+        margin: 1.5rem 0;
+        padding: 0.8rem 1rem 0.4rem;
+        overflow: hidden;
+      }
+
+      .tug-field {
+        position: relative;
+        height: 100px;
+      }
+
+      .crew {
+        position: absolute;
+        bottom: 0;
+        display: flex;
+        gap: 2px;
+        z-index: 2;
+      }
+
+      .crew-a {
+        left: 0;
+        rotate: -14deg;
+        transform-origin: bottom left;
+        animation: pull-a 0.7s ease-in-out infinite alternate;
+      }
+
+      .crew-b {
+        right: 0;
+        rotate: 14deg;
+        transform-origin: bottom right;
+        animation: pull-b 0.7s ease-in-out infinite alternate;
+      }
+
+      .crew-b :global(.unit) {
+        scale: -1 1;
+      }
+
+      .rope-wrap {
+        position: absolute;
+        left: 12%;
+        right: 12%;
+        top: 42px;
+        height: 30px;
+        animation: tug 1.4s ease-in-out infinite alternate;
+      }
+
+      .rope {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 12px;
+        height: 7px;
+        border-radius: 4px;
+        background: repeating-linear-gradient(60deg, #c58b4a 0 6px, #9a6631 6px 12px);
+        border: 2px solid var(--ink);
+      }
+
+      .flag {
+        position: absolute;
+        left: 50%;
+        top: -14px;
+        width: 4px;
+        height: 34px;
+        background: var(--ink);
+        transition: left 2s var(--pop) 0.4s;
+      }
+
+      .flag::after {
+        content: "";
+        position: absolute;
+        left: 4px;
+        top: 0;
+        border-left: 22px solid var(--gold);
+        border-top: 8px solid transparent;
+        border-bottom: 8px solid transparent;
+        filter: drop-shadow(1px 0 0 var(--ink)) drop-shadow(0 1px 0 var(--ink));
+      }
+
+      .tug:global(.is-visible) .flag {
+        left: 49.5%;
+      }
+
+      .midline {
+        position: absolute;
+        left: 50%;
+        top: 0;
+        bottom: 0;
+        border-left: 3px dashed rgb(35 32 46 / 0.35);
+      }
+
+      .tug-score {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 0.4rem;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+
+      .tug-score b {
+        font-family: var(--display);
+        font-weight: 400;
+        font-size: 1.2rem;
+      }
+
+      .ta {
+        color: var(--a-dark);
+      }
+
+      .tb {
+        color: var(--b-dark);
+      }
+
+      /* lista de unidades */
+      .roster {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin: 1.5rem 0;
+      }
+
+      .card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.4rem;
+        padding: 1rem 0.8rem 1.1rem;
+        text-align: center;
+      }
+
+      .champ {
+        --rays: #d5e4ff;
+        rotate: -2deg;
+      }
+
+      .weak {
+        --rays: #ffd9ca;
+        rotate: 2deg;
+      }
+
+      .weak :global(.unit) {
+        animation: shiver 0.12s linear infinite;
+      }
+
+      .model {
+        font-size: 0.85rem;
+        color: var(--muted);
+        word-break: break-word;
+      }
+
+      /* gigantes */
+      .giant {
+        display: flex;
+        align-items: center;
+        gap: 1.2rem;
+        margin-top: 3rem;
+        padding: 1.4rem 1.4rem 0.6rem;
+      }
+
+      .giant p {
+        margin: 0.4rem 0 1rem;
+        font-size: 0.95rem;
+        padding: 0.6rem 0.8rem;
+        background: rgb(255 250 240 / 0.85);
+        border: 3px solid var(--ink);
+        border-radius: 12px;
+      }
+
+      .giant-army {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: flex-end;
+      }
+
+      .giant :global(.big-unit) {
+        transform: scale(0.3);
+        transform-origin: bottom center;
+        transition: transform 1.2s var(--pop);
+      }
+
+      .giant:global(.is-visible) :global(.big-unit) {
+        transform: none;
+      }
+
+      /* botín: hallazgos */
+      .loot li {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      .star {
+        flex: 0 0 auto;
+        display: grid;
+        place-items: center;
+        width: 32px;
+        height: 32px;
+        margin-top: -2px;
+        font-size: 1.1rem;
+        color: var(--ink);
+        background: var(--gold);
+        border: 3px solid var(--ink);
+        border-radius: 50%;
+        box-shadow: 0 3px 0 var(--ink);
+      }
+
+      li:global(.is-visible) .star {
+        animation: spin-in 0.8s var(--pop) both;
+        animation-delay: calc(var(--i, 0) * 110ms + 0.2s);
+      }
+
+      /* victoria */
+      .victory {
+        position: relative;
+        margin: 4rem 0 1rem;
+        text-align: center;
+      }
+
+      .confetti {
+        position: absolute;
+        inset: -40px -10px auto;
+        height: 0;
+        pointer-events: none;
+      }
+
+      .confetti :global(i) {
+        position: absolute;
+        top: 0;
+        width: 10px;
+        height: 16px;
+        border: 2px solid var(--ink);
+        border-radius: 2px;
+        animation: confetti 2.6s cubic-bezier(0.2, 0.6, 0.4, 1) forwards;
+      }
+
+      .victory-title {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        font-size: clamp(3.2rem, 14vw, 5.5rem);
+        color: var(--gold);
+        text-shadow:
+          3px 0 0 var(--ink),
+          -3px 0 0 var(--ink),
+          0 3px 0 var(--ink),
+          0 -3px 0 var(--ink),
+          2px 2px 0 var(--ink),
+          -2px -2px 0 var(--ink),
+          2px -2px 0 var(--ink),
+          -2px 2px 0 var(--ink),
+          0 9px 0 var(--ink);
+        transform: scale(0) rotate(-12deg);
+        transition: transform 0.9s var(--pop);
+      }
+
+      .victory-title small {
+        font-size: 0.32em;
+        color: #fff;
+        margin-top: 0.3em;
+        text-shadow:
+          2px 0 0 var(--ink),
+          -2px 0 0 var(--ink),
+          0 2px 0 var(--ink),
+          0 -2px 0 var(--ink),
+          0 4px 0 var(--ink);
+      }
+
+      .victory:global(.is-visible) .victory-title {
+        transform: rotate(-3deg);
+      }
+
+      .victory-units {
+        display: flex;
+        justify-content: center;
+        gap: 14px;
+        margin: 1rem 0 0.4rem;
+      }
+
+      .victory:global(.is-visible) .victory-units :global(.unit) {
+        animation: cheer 0.6s ease-in-out infinite alternate;
+      }
+
+      .victory-units :global(.unit:nth-child(2)) {
+        animation-delay: 0.2s !important;
+      }
+
+      .victory-units :global(.unit:nth-child(3)) {
+        animation-delay: 0.4s !important;
+      }
+
+      .answer {
+        padding: 1.4rem 1.4rem 1.2rem;
+        text-align: left;
+      }
+
+      .answer p {
+        margin: 0.8rem 0 0;
+        font-family: var(--display);
+        font-size: 1.3rem;
+        line-height: 1.3;
+      }
+
+      /* próxima campaña */
+      .campaign {
+        list-style: none;
+        counter-reset: c;
+        padding: 0;
+        margin: 1.4rem 0;
+      }
+
+      .campaign li {
+        counter-increment: c;
+        position: relative;
+        margin-bottom: 14px;
+        padding: 0.2rem 0 0 3.4rem;
+        min-height: 44px;
+      }
+
+      .campaign li::before {
+        content: counter(c);
+        position: absolute;
+        left: 0;
+        top: 0;
+        display: grid;
+        place-items: center;
+        width: 40px;
+        height: 44px;
+        font-family: var(--display);
+        font-size: 1.2rem;
+        color: #fff;
+        background: var(--a);
+        border: 3px solid var(--ink);
+        border-radius: 10px 10px 20px 20px;
+        box-shadow: 0 3px 0 var(--ink);
+      }
+
+      /* referencias */
+      .refs {
+        padding: 14vh 0 8vh;
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+
+      .refs h3 {
+        font-size: 1.3rem;
+        color: var(--ink);
+        margin-bottom: 0.8rem;
+      }
+
+      .refs ul {
+        padding-left: 1.1rem;
+      }
+
+      .refs li {
+        margin-bottom: 0.6rem;
+      }
+
+      .refs a {
+        color: var(--a-dark);
+      }
+
+      .refs .btn {
+        color: #fff;
+      }
+
+      .bye {
+        margin-top: 10vh;
+        text-align: center;
+      }
+
+      .bye p {
+        font-family: var(--display);
+        font-size: clamp(2rem, 8vw, 3rem);
+        color: var(--ink);
+        margin-bottom: 1rem;
+      }
+
+      .btn-blue {
+        background: var(--a);
+        box-shadow:
+          inset 0 -6px 0 var(--a-dark),
+          0 6px 0 var(--ink);
+      }
+
+      .hint {
+        margin-top: 2.5rem;
+        text-align: center;
+        font-size: 0.8rem;
+        opacity: 0.7;
+      }
+
+      /* ---------- keyframes ---------- */
+      @keyframes pull-a {
+        to {
+          translate: -6px 0;
+          rotate: -18deg;
+        }
+      }
+
+      @keyframes pull-b {
+        to {
+          translate: 5px 0;
+          rotate: 17deg;
+        }
+      }
+
+      @keyframes tug {
+        from {
+          transform: translateX(-7px);
+        }
+        to {
+          transform: translateX(4px);
+        }
+      }
+
+      @keyframes shiver {
+        0% {
+          translate: -1px 0;
+        }
+        50% {
+          translate: 1px 0;
+        }
+        100% {
+          translate: -1px 0;
+        }
+      }
+
+      @keyframes spin-in {
+        from {
+          transform: scale(0) rotate(-180deg);
+        }
+      }
+
+      @keyframes cheer {
+        from {
+          transform: translateY(0);
+        }
+        to {
+          transform: translateY(-22px) rotate(-6deg);
+        }
+      }
+
+      @keyframes confetti {
+        0% {
+          transform: translate(0, 0) rotate(0);
+          opacity: 1;
+        }
+        100% {
+          transform: translate(var(--dx), var(--dy)) rotate(var(--r));
+          opacity: 0;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .meter {
+          grid-template-columns: 6.8rem 1fr 3.2rem;
+          font-size: 0.82rem;
+        }
+        .duel {
+          grid-template-columns: 1fr 1fr;
+        }
+        .duel-score {
+          grid-column: 1 / -1;
+          grid-row: 1;
+          margin-bottom: 0.8rem;
+        }
+        .duel-score p {
+          margin-bottom: 0.4rem;
+        }
+        .crew {
+          scale: 0.72;
+        }
+        .giant {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+        .mission {
+          padding-right: 1.6rem;
+          padding-bottom: 4.2rem;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .stack i,
+        .meter i::before,
+        .giant :global(.big-unit),
+        .victory-title {
+          transform: none;
+        }
+        .check::after {
+          scale: 1;
+        }
+        .flag {
+          left: 49.5%;
+        }
+      }
+    </style>
+
+    <script>
+      // Unidades 3D low-poly (ojos que siguen al cursor, ragdoll al hacer click)
+      import "../scripts/units3d";
+
+      const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      // Escalonar la entrada de los hijos de cada lista
+      document.querySelectorAll("[data-stagger]").forEach((list) => {
+        [...list.children].forEach((el, i) => (el as HTMLElement).style.setProperty("--i", String(i)));
+      });
+
+      // Contadores que suben de 0 al valor final
+      const fmt = (n: number, d: number) =>
+        n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+
+      function countUp(el: HTMLElement) {
+        const target = Number(el.dataset.count);
+        const decimals = Number(el.dataset.decimals ?? 0);
+        if (reduced) {
+          el.textContent = fmt(target, decimals);
+          return;
+        }
+        const duration = 1500;
+        const start = performance.now();
+        const tick = (now: number) => {
+          const t = Math.min((now - start) / duration, 1);
+          // sobrepasa un poco y regresa, como todo en este simulador
+          const eased = 1 - Math.pow(1 - t, 3) * Math.cos(t * Math.PI * 1.5);
+          el.textContent = fmt(target * Math.min(eased, 1.04), decimals);
+          if (t < 1) requestAnimationFrame(tick);
+          else el.textContent = fmt(target, decimals);
+        };
+        requestAnimationFrame(tick);
+      }
+
+      // Confeti al llegar a la pantalla de victoria
+      function confetti(box: Element) {
+        if (reduced) return;
+        const colors = ["var(--a)", "var(--b)", "var(--gold)", "var(--grass)", "#fff"];
+        for (let k = 0; k < 60; k++) {
+          const p = document.createElement("i");
+          p.style.left = `${Math.random() * 100}%`;
+          p.style.background = colors[k % colors.length];
+          p.style.setProperty("--dx", `${(Math.random() - 0.5) * 200}px`);
+          p.style.setProperty("--dy", `${200 + Math.random() * 380}px`);
+          p.style.setProperty("--r", `${(Math.random() - 0.5) * 1080}deg`);
+          p.style.animationDelay = `${Math.random() * 0.5}s`;
+          box.appendChild(p);
+        }
+      }
+
+      // Revelar elementos al entrar en pantalla
+      const io = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            const el = entry.target as HTMLElement;
+            el.classList.add("is-visible");
+            const counters = el.matches("[data-count]") ? [el] : [...el.querySelectorAll<HTMLElement>("[data-count]")];
+            counters.forEach(countUp);
+            if (el.id === "victory") confetti(el.querySelector(".confetti")!);
+            io.unobserve(el);
+          }
+        },
+        { threshold: 0.25, rootMargin: "0px 0px -8% 0px" },
+      );
+
+      document.querySelectorAll("[data-reveal], [data-fig], [data-anim]").forEach((el) => io.observe(el));
+
+      // Barra de "HP" con el progreso de lectura
+      const hp = document.getElementById("hp")!;
+      const hpPct = document.getElementById("hp-pct")!;
+      const onScroll = () => {
+        const max = document.documentElement.scrollHeight - innerHeight;
+        const pct = max > 0 ? Math.min(100, Math.round((scrollY / max) * 100)) : 0;
+        hp.style.width = `${pct}%`;
+        hpPct.textContent = `${pct}%`;
+      };
+      addEventListener("scroll", onScroll, { passive: true });
+      onScroll();
+    </script>
+  </body>
+</html>
