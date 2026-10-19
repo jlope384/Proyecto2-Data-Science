@@ -86,23 +86,23 @@ const objectives = [
 const conclusions = [
   {
     t: "Los sesgos existen, pero con pesos muy distintos",
-    d: "La verbosidad es el sesgo dominante: la respuesta más larga gana el 61.5 % de las batallas decididas, y la proporción crece de forma monótona con la razón de longitudes (de 49.5 % si son casi iguales a 68.7 % si una es 5 veces más larga). El sesgo de posición es real pero mínimo (A gana 50.5 % frente a 49.5 %, p = 0.038). Esto confirma con datos reales lo reportado por Zheng et al. (2023).",
+    d: "La respuesta más larga gana el 61.5 % de las veces, mientras que la posición casi no importa (A gana 50.5 %).",
   },
   {
     t: "El formato es en gran parte un reflejo de la longitud",
-    d: "La respuesta con más markdown gana ~46 % frente a ~27 %, pero en los modelos su peso cae mucho al controlar por longitud: las respuestas con listas y negritas ganan sobre todo porque son más largas, no por el formato en sí.",
+    d: "Las respuestas con más markdown ganan sobre todo porque son más largas, no por el formato en sí.",
   },
   {
     t: "La superficie da el piso, el contenido es el techo",
-    d: "Ninguna variable de superficie pasa de |ρ| = 0.24 con el voto. Aun así, solo con ellas la log loss baja de 1.0972 a 1.0654 (LogReg) o a 1.0460 (HistGB, con interacciones no lineales). Agregar el contenido con TF-IDF lleva a 1.0414: una mejora real pero chica, porque la bolsa de palabras no captura la calidad del razonamiento. La preferencia humana depende sobre todo de un contenido que requiere representaciones semánticas.",
+    d: "La superficie baja la log loss de 1.097 a 1.046 y el TF-IDF solo llega a 1.041: para mejorar más hay que entender el significado.",
   },
   {
     t: "El empate es la clase menos separable",
-    d: "Los empates se concentran cuando las respuestas tienen longitudes parecidas (37.7 % con razón < 1.1 y 74.7 % si son idénticas) y bajan a ~25 % cuando una es mucho más larga. Ningún modelo los reconoce bien (exhaustividad de 0.05 a 0.34): un empate depende de que ambas respuestas sean igual de buenas, y eso no se ve en la superficie.",
+    d: "Los empates aparecen cuando las respuestas miden parecido, pero ningún modelo logra reconocerlos bien.",
   },
   {
     t: "Calibrar importa más que acertar; la complejidad rinde poco",
-    d: "El modelo TF-IDF sin regularizar acertaba más pero tenía peor log loss que la línea base por sobreconfianza. Con regularización fuerte y calibración sigmoide pasó a ser el mejor, con probabilidades bien calibradas entre 0.1 y 0.45. Frente a HistGB, el TF-IDF tarda unas 13 veces más (83.5 s contra 6.2 s) para mejorar solo 0.005 en log loss: el siguiente salto exige otro tipo de representación, no más del mismo.",
+    d: "Calibrar volvió al TF-IDF el mejor modelo, pero tarda 13 veces más que HistGB para mejorar apenas 0.005.",
   },
 ];
 
