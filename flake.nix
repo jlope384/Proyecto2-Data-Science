@@ -60,16 +60,10 @@
             packages = [
               pythonEnv
               pkgs.pyright
-              pkgs.chromium
-              pkgs.chromedriver
 
               pkgs.nodejs
             ];
 
-            shellHook = ''
-              export CHROMIUM_BIN="${pkgs.chromium}/bin/chromium"
-              export CHROMEDRIVER_BIN="${pkgs.chromedriver}/bin/chromedriver"
-            '';
           };
         }
       );
