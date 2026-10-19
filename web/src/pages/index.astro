@@ -76,11 +76,11 @@ const challenges = [
 ];
 
 const objectives = [
-  "Cuantificar la magnitud de los sesgos de superficie del votante (verbosidad, formato y posición) y contrastarla con lo reportado en la literatura sobre Chatbot Arena y LLM como jueces.",
-  "Determinar si el efecto del formato markdown sobre el voto es independiente de la longitud o solo un reflejo de ella.",
-  "Medir cuánta información sobre la preferencia aportan las características de superficie frente al contenido léxico de las respuestas.",
-  "Identificar bajo qué condiciones los usuarios declaran empate y qué tan separable es esta clase de una preferencia clara.",
-  "Evaluar si es posible producir probabilidades de preferencia bien calibradas y cómo se relaciona la complejidad del modelo con la ganancia predictiva y su costo computacional.",
+  "Medir qué tanto influyen la longitud, el formato y la posición en el voto.",
+  "Ver si el formato influye por sí solo o solo porque alarga la respuesta.",
+  "Comparar cuánto predicen las variables de superficie frente al contenido del texto.",
+  "Entender cuándo hay empate y si se puede distinguir de una preferencia clara.",
+  "Lograr probabilidades confiables y ver si un modelo más complejo vale su costo.",
 ];
 
 const conclusions = [
@@ -169,9 +169,8 @@ const futureWork = [
 
       <Section id="objetivos" num="1-2" kicker="Objetivos de la misión" title="Qué buscamos">
         <p data-reveal>
-          <strong>General:</strong> determinar en qué medida la preferencia humana entre
-          dos respuestas de LLM puede predecirse a partir de su texto, y qué factores la
-          explican: sesgos de superficie o calidad del contenido.
+          <strong>General:</strong> predecir cuál de dos respuestas de LLM prefiere la gente
+          y saber si lo decide la forma o el contenido.
         </p>
         <ul class="quests" data-stagger>
           {objectives.map((o) => (
