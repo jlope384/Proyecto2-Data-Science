@@ -40,22 +40,6 @@ const decisions = [
     d: "No usar la identidad del modelo",
     why: "Explica mucho (18.6%–76.0% de victorias), pero no viene en el set de prueba. Usarla sería una fuga de información.",
   },
-  {
-    d: "Partición estratificada 80/20 con semilla fija",
-    why: "Conserva la proporción A / B / empate en ambos lados y es reproducible. El ajuste usa validación cruzada solo dentro del entrenamiento.",
-  },
-  {
-    d: "TF-IDF (1–2 gramas) de A y B por separado, C = 0.3 y calibración sigmoide",
-    why: "Lee el contenido sin necesitar GPU. La regularización fuerte y la calibración evitan probabilidades sobreconfiadas.",
-  },
-  {
-    d: "HistGradientBoosting con GridSearchCV sobre log-loss",
-    why: "Captura interacciones no lineales entre las variables en segundos y sin dependencias extra.",
-  },
-  {
-    d: "Un solo preprocesamiento para cuaderno, app y página",
-    why: "preprocesamiento.py replica el cuaderno y preparar_datos.py verifica que las predicciones de la app coincidan con las del cuaderno.",
-  },
 ];
 
 const challenges = [
