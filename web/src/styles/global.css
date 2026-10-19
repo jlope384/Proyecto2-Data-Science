@@ -30,6 +30,7 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: clip; /* nubes del hero y confeti no deben dar scroll lateral */
 }
 
 body {

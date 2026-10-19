@@ -3,7 +3,10 @@
 // Cada [data-unit] trae un <canvas>. Para no abrir un contexto WebGL por
 // unidad, hay un solo renderer fuera de pantalla: cada cuadro se renderiza la
 // unidad en una esquina del renderer y se copia a su canvas con drawImage.
-// Solo se dibujan las unidades visibles.
+// Solo se dibujan las unidades visibles, cada una se arma la primera vez que
+// aparece en pantalla y las piezas rígidas de cada hueso se funden en una sola
+// malla (pocas llamadas de dibujo por unidad). Se anima a 30 cuadros por
+// segundo, que además va con el estilo PS1.
 //
 // Esqueleto: pelvis → (piernas: muslo → rodilla → espinilla) y
 // columna → (brazos: brazo → codo → antebrazo → mano) y cuello → cabeza.
@@ -15,6 +18,7 @@ import {
   BufferGeometry,
   CapsuleGeometry,
   CircleGeometry,
+  Color,
   ConeGeometry,
   CylinderGeometry,
   DirectionalLight,
@@ -30,11 +34,13 @@ import {
   ShapeGeometry,
   SphereGeometry,
   LatheGeometry,
+  Material,
+  Object3D,
   TorusGeometry,
   Vector2,
   WebGLRenderer,
 } from "three";
-import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
+import { mergeGeometries, mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
 
 type Team = "a" | "b" | "tie";
 type Idle = "wobble" | "walk" | "pull";
@@ -93,6 +99,65 @@ function polyfy(m: Mesh, jitter: number, tone: number) {
   m.geometry = flat;
 }
 const shadowMat = new MeshBasicMaterial({ color: "#000", transparent: true, opacity: 0.18, depthWrite: false });
+
+// Material único para el cuerpo ya horneado: el color de cada pieza va en los
+// vértices, así un hueso entero se dibuja de una vez.
+const bodyMat = [false, true].map((double) => {
+  const m = new MeshLambertMaterial({ color: "#ffffff", flatShading: true, vertexColors: true });
+  if (double) m.side = DoubleSide;
+  return m;
+});
+const tint = new Color();
+
+// Funde las piezas rígidas que cuelgan directamente de cada hueso (grupo) en
+// una malla por material. Las de `keep` (pupilas) se quedan sueltas porque se
+// mueven solas.
+function bake(root: Object3D, keep: Set<Mesh>) {
+  const bones: Object3D[] = [];
+  root.traverse((o) => {
+    if (!(o instanceof Mesh)) bones.push(o);
+  });
+  for (const bone of bones) {
+    const parts = bone.children.filter((o): o is Mesh => o instanceof Mesh && !keep.has(o));
+    if (parts.length < 2) continue;
+    const buckets = new Map<Material, BufferGeometry[]>();
+    for (const m of parts) {
+      const src = m.material as MeshLambertMaterial | MeshBasicMaterial;
+      m.updateMatrix();
+      const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+      g.applyMatrix4(m.matrix);
+      for (const k of Object.keys(g.attributes)) if (k !== "position" && k !== "normal" && k !== "color") g.deleteAttribute(k);
+      if (!g.getAttribute("normal")) g.computeVertexNormals();
+      let target: Material;
+      if (src === pupilMat) {
+        target = pupilMat;
+        if (g.getAttribute("color")) g.deleteAttribute("color");
+      } else {
+        target = bodyMat[src.side === DoubleSide ? 1 : 0];
+        tint.copy(src.color);
+        const tone = g.getAttribute("color");
+        const n = g.getAttribute("position").count;
+        const col = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) {
+          const t = tone ? tone.getX(i) : 1;
+          col[i * 3] = tint.r * t;
+          col[i * 3 + 1] = tint.g * t;
+          col[i * 3 + 2] = tint.b * t;
+        }
+        g.setAttribute("color", new BufferAttribute(col, 3));
+      }
+      if (!buckets.has(target)) buckets.set(target, []);
+      buckets.get(target)!.push(g);
+      m.geometry.dispose();
+      bone.remove(m);
+    }
+    for (const [material, geos] of buckets) {
+      const merged = mergeGeometries(geos);
+      geos.forEach((g) => g.dispose());
+      if (merged) bone.add(new Mesh(merged, material));
+    }
+  }
+}
 
 const mesh = (g: BufferGeometry, color: string, x = 0, y = 0, z = 0) => {
   const m = new Mesh(g, mat(color));
@@ -292,6 +357,7 @@ function build(o: Opts): Model {
     if (obj.userData.poly === "eye") polyfy(obj, 0, 0.02);
     else polyfy(obj, 0.004, 0.04);
   });
+  bake(root, new Set(pupils.map((p) => p.mesh)));
 
   return { base, root, pelvis, spine, neck, head, armL: arms[0], armR: arms[1], legL: legs[0], legR: legs[1], pupils };
 }
@@ -371,7 +437,8 @@ interface Unit {
   el: HTMLElement;
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
-  model: Model;
+  opts: Opts;
+  model: Model | null;
   idle: Idle;
   armed: boolean;
   phase: number;
@@ -397,8 +464,7 @@ function setLimb(l: Limb, ux: number, uz: number, lx: number, uy = 0) {
   l.lower.rotation.set(lx, 0, 0);
 }
 
-function pose(u: Unit, now: number) {
-  const m = u.model;
+function pose(u: Unit, m: Model, now: number) {
   const t = now / 1000 + u.phase;
   const { root, pelvis, spine, neck, head, armL, armR, legL, legR } = m;
 
@@ -551,22 +617,24 @@ function pose(u: Unit, now: number) {
     }
   }
 
-  // pupilas: se suavizan hacia donde está el cursor
-  u.look.x += (u.look.tx - u.look.x) * 0.15;
-  u.look.y += (u.look.ty - u.look.y) * 0.15;
+  // pupilas: se suavizan hacia donde está el cursor (0.28 a 30 fps ≈ 0.15 a 60)
+  u.look.x += (u.look.tx - u.look.x) * 0.28;
+  u.look.y += (u.look.ty - u.look.y) * 0.28;
   for (const { mesh: p, r } of m.pupils) {
     p.position.set(u.look.x * r * 0.4, -u.look.y * r * 0.4, r * 0.62);
   }
 }
 
 // ---------- arranque ----------
+const FRAME_MS = 1000 / 30;
+
 function init() {
   const els = [...document.querySelectorAll<HTMLElement>("[data-unit]")];
   if (!els.length) return;
 
   let renderer: WebGLRenderer;
   try {
-    renderer = new WebGLRenderer({ antialias: true, alpha: true });
+    renderer = new WebGLRenderer({ antialias: true, alpha: true, powerPreference: "low-power" });
   } catch {
     return; // sin WebGL: las unidades simplemente no aparecen
   }
@@ -606,7 +674,8 @@ function init() {
       el,
       canvas,
       ctx: canvas.getContext("2d")!,
-      model: build(opts),
+      opts,
+      model: null,
       idle: opts.idle,
       armed: opts.weapon !== "none",
       phase: i * 1.37,
@@ -621,6 +690,7 @@ function init() {
       look: { x: 0, y: 0, tx: 0, ty: 0 },
     };
   });
+  const byEl = new Map(units.map((u) => [u.el, u]));
 
   // Tamaños: el canvas usa el tamaño de layout (ignora transforms y volteos)
   let maxW = 1;
@@ -629,21 +699,32 @@ function init() {
     maxW = 1;
     maxH = 1;
     for (const u of units) {
-      u.w = Math.max(1, Math.round(u.el.clientWidth * dpr));
-      u.h = Math.max(1, Math.round(u.el.clientHeight * dpr));
-      u.canvas.width = u.w;
-      u.canvas.height = u.h;
+      const w = Math.max(1, Math.round(u.el.clientWidth * dpr));
+      const h = Math.max(1, Math.round(u.el.clientHeight * dpr));
+      // cambiar el tamaño borra el canvas: solo si de verdad cambió
+      if (w !== u.w || h !== u.h) {
+        u.w = u.canvas.width = w;
+        u.h = u.canvas.height = h;
+      }
       u.flipped = getComputedStyle(u.el).scale.trim().startsWith("-");
       maxW = Math.max(maxW, u.w);
       maxH = Math.max(maxH, u.h);
     }
     renderer.setSize(maxW, maxH, false);
   };
+  // se vuelve a medir cuando cambia el tamaño de alguna (ventana, o una
+  // unidad que estaba oculta y aparece)
+  let resizing = 0;
+  const ro = new ResizeObserver(() => {
+    cancelAnimationFrame(resizing);
+    resizing = requestAnimationFrame(measure);
+  });
+  units.forEach((u) => ro.observe(u.el));
   measure();
-  addEventListener("resize", measure);
 
   const draw = (u: Unit, now: number) => {
-    pose(u, now);
+    if (!u.model) u.model = build(u.opts);
+    pose(u, u.model, now);
     scene.add(u.model.base);
     renderer.setViewport(0, 0, u.w, u.h);
     renderer.setScissor(0, 0, u.w, u.h);
@@ -655,11 +736,11 @@ function init() {
     u.ctx.drawImage(renderer.domElement, 0, maxH - u.h, u.w, u.h, 0, 0, u.w, u.h);
   };
 
-  // Solo se dibujan las que están en pantalla
+  // Solo se dibujan las que están en pantalla (y se arman al aparecer)
   const io = new IntersectionObserver(
     (entries) => {
       for (const e of entries) {
-        const u = units.find((x) => x.el === e.target)!;
+        const u = byEl.get(e.target as HTMLElement)!;
         u.visible = e.isIntersecting;
         if (u.visible && reduced) draw(u, 0);
       }
@@ -670,6 +751,7 @@ function init() {
 
   // Interacción: hover, click (ragdoll) y ojos/cabeza que siguen al cursor
   let lastMove = 0;
+  let pointer: { x: number; y: number } | null = null;
   for (const u of units) {
     u.el.addEventListener("pointerenter", () => (u.hover = true));
     u.el.addEventListener("pointerleave", () => (u.hover = false));
@@ -679,23 +761,38 @@ function init() {
       if (reduced) draw(u, 0);
     });
   }
-  addEventListener("pointermove", (e) => {
-    lastMove = performance.now();
+  // solo se guarda la posición; la mirada se calcula una vez por cuadro
+  addEventListener(
+    "pointermove",
+    (e) => {
+      lastMove = performance.now();
+      pointer = { x: e.clientX, y: e.clientY };
+    },
+    { passive: true },
+  );
+  const aim = () => {
+    if (!pointer) return;
     for (const u of units) {
       if (!u.visible) continue;
       const r = u.el.getBoundingClientRect();
-      const dx = e.clientX - (r.left + r.width / 2);
-      const dy = e.clientY - (r.top + r.height * 0.15);
+      const dx = pointer.x - (r.left + r.width / 2);
+      const dy = pointer.y - (r.top + r.height * 0.15);
       const len = Math.hypot(dx, dy) || 1;
       const k = Math.min(1, len / 60);
       u.look.tx = (dx / len) * k * (u.flipped ? -1 : 1);
       u.look.ty = (dy / len) * k;
     }
-  });
+    pointer = null;
+  };
 
   if (reduced) return;
 
+  let last = 0;
   const loop = (now: number) => {
+    requestAnimationFrame(loop);
+    if (now - last < FRAME_MS - 2) return;
+    last = now;
+    aim();
     // sin cursor un rato: miran de un lado a otro solos
     if (now - lastMove > 2500) {
       for (const u of units) {
@@ -704,7 +801,6 @@ function init() {
       }
     }
     for (const u of units) if (u.visible) draw(u, now);
-    requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
 }

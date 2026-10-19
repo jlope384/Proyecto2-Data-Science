@@ -1,0 +1,243 @@
+---
+// Demo en vivo: la app de Streamlit (carpeta app/) incrustada con un iframe.
+// Si la app no responde, se cambia solo al respaldo en el navegador
+// (Demo.astro: la LogReg estructural exportada a JS), y vuelve a la app en
+// cuanto esta arranca. La URL se puede cambiar con ?st=<url> o con la variable
+// PUBLIC_STREAMLIT_URL al compilar.
+import Demo from "./Demo.astro";
+
+const url = import.meta.env.PUBLIC_STREAMLIT_URL ?? "http://localhost:8501";
+---
+
+<div class="live" data-live data-url={url}>
+  <div class="tabs" role="tablist" aria-label="Modo de la demo">
+    <button type="button" role="tab" class="tab on" data-mode="live" aria-selected="true">
+      <i class="dot"></i> En vivo · Streamlit
+    </button>
+    <button type="button" role="tab" class="tab" data-mode="local" aria-selected="false">
+      Respaldo · navegador
+    </button>
+  </div>
+
+  <p class="status" aria-live="polite">
+    <span data-status>Buscando la app en <code>{url}</code>…</span>
+    <a data-open href={url} target="_blank" rel="noopener">Abrir en otra pestaña ↗</a>
+  </p>
+
+  <div class="pane" data-pane="live">
+    <div class="frame panel">
+      <iframe title="Aplicación de Streamlit con los modelos entrenados" allow="clipboard-write"></iframe>
+      <div class="offline" data-offline>
+        <b>La app no está corriendo</b>
+        <p>Levántala en otra terminal y esta vista se conecta sola:</p>
+        <pre><code>cd app
+streamlit run app.py</code></pre>
+      </div>
+    </div>
+    <p class="hint">Pestaña <b>🤖 Predecir</b>: los cuatro modelos y su consenso con el texto que escribas.</p>
+  </div>
+
+  <div class="pane" data-pane="local" hidden>
+    <p class="hint">
+      Sin servidor: la <b>regresión logística estructural</b> (log-loss 1.065) exportada a
+      JavaScript, con las mismas variables y coeficientes que en Python.
+    </p>
+    <Demo />
+  </div>
+</div>
+
+<style>
+  .live {
+    margin: 1.6rem 0 1rem;
+  }
+
+  .tabs {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .tab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font: inherit;
+    font-family: var(--display);
+    font-size: 1rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink);
+    padding: 0.45em 1em;
+    background: var(--paper);
+    border: 3px solid var(--ink);
+    border-radius: 999px;
+    box-shadow: 0 3px 0 var(--ink);
+    cursor: pointer;
+  }
+
+  .tab.on {
+    background: var(--gold);
+  }
+
+  .tab:active {
+    transform: translateY(3px);
+    box-shadow: none;
+  }
+
+  .dot {
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--ink);
+    border-radius: 50%;
+    background: var(--tie);
+  }
+
+  .live.up .dot {
+    background: var(--grass);
+    animation: blink 1.4s ease-in-out infinite;
+  }
+
+  .status {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0.9rem 0;
+    font-size: 0.88rem;
+    color: var(--muted);
+  }
+
+  .status code {
+    font-size: 0.85em;
+  }
+
+  .status a {
+    color: var(--a-dark);
+    font-weight: 800;
+  }
+
+  .frame {
+    position: relative;
+    overflow: hidden;
+    padding: 0;
+    background: #fff;
+  }
+
+  iframe {
+    display: block;
+    width: 100%;
+    height: max(640px, 82vh);
+    border: 0;
+  }
+
+  .offline {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    gap: 0.4rem;
+    padding: 1.4rem;
+    text-align: center;
+    background: var(--paper);
+  }
+
+  .live.up .offline {
+    display: none;
+  }
+
+  .offline b {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: 1.5rem;
+  }
+
+  .offline p {
+    margin: 0;
+  }
+
+  pre {
+    margin: 0.4rem auto 0;
+    padding: 0.7rem 1rem;
+    text-align: left;
+    color: #fff;
+    background: var(--ink);
+    border-radius: 12px;
+  }
+
+  .hint {
+    margin: 0.8rem 0 0;
+    font-size: 0.88rem;
+    color: var(--muted);
+  }
+
+  @keyframes blink {
+    50% {
+      opacity: 0.35;
+    }
+  }
+</style>
+
+<script>
+  const root = document.querySelector<HTMLElement>("[data-live]")!;
+  const base = (new URLSearchParams(location.search).get("st") ?? root.dataset.url!).replace(/\/$/, "");
+  const iframe = root.querySelector("iframe")!;
+  const status = root.querySelector<HTMLElement>("[data-status]")!;
+  const open = root.querySelector<HTMLAnchorElement>("[data-open]")!;
+  const tabs = [...root.querySelectorAll<HTMLButtonElement>("[data-mode]")];
+  const panes = [...root.querySelectorAll<HTMLElement>("[data-pane]")];
+  open.href = base;
+
+  let up = false;
+  let manual = false; // si el presentador eligió una pestaña, ya no se cambia sola
+
+  function show(mode: string) {
+    tabs.forEach((t) => {
+      const on = t.dataset.mode === mode;
+      t.classList.toggle("on", on);
+      t.setAttribute("aria-selected", String(on));
+    });
+    panes.forEach((p) => (p.hidden = p.dataset.pane !== mode));
+  }
+
+  tabs.forEach((t) =>
+    t.addEventListener("click", () => {
+      manual = true;
+      show(t.dataset.mode!);
+    }),
+  );
+
+  // Con mode "no-cors" la respuesta es opaca, pero la promesa solo se resuelve
+  // si el servidor contestó: basta para saber si la app está arriba.
+  async function check() {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 2500);
+    let ok = false;
+    try {
+      await fetch(`${base}/_stcore/health`, { mode: "no-cors", cache: "no-store", signal: ctrl.signal });
+      ok = true;
+    } catch {
+      ok = false;
+    }
+    clearTimeout(timer);
+
+    if (ok && !up) {
+      up = true;
+      root.classList.add("up");
+      iframe.src = `${base}/?embed=true&embed_options=light_theme`;
+      status.textContent = "Conectado a la app de Streamlit: los modelos corren en Python en este momento.";
+      if (!manual) show("live");
+    } else if (!ok && up) {
+      up = false;
+      root.classList.remove("up");
+      iframe.removeAttribute("src");
+    }
+    if (!ok) {
+      status.textContent = `No se encontró la app en ${base}. Mientras tanto se usa el respaldo en el navegador.`;
+      if (!manual) show("local");
+    }
+  }
+
+  // Revisa al cargar y luego cada 5 s, para conectarse si la app arranca después
+  check();
+  setInterval(check, 5000);
+</script>

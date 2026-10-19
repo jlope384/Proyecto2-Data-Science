@@ -1,0 +1,352 @@
+---
+// Arena de práctica: el modelo estructural del cuaderno, corriendo en el
+// navegador. Se escribe un prompt y dos respuestas y predice A / B / empate.
+import Unit from "./Unit.astro";
+
+const presets = [
+  {
+    label: "Verboso vs. breve",
+    prompt: "¿Cómo puedo dormir mejor?",
+    a: `¡Buena pregunta! Dormir bien depende de varios hábitos:
+
+## Rutina
+1. **Horario fijo**: acuéstate y levántate a la misma hora, incluso los fines de semana.
+2. **Luz**: exponte al sol en la mañana y baja las luces por la noche.
+3. **Pantallas**: deja el celular al menos 30 minutos antes de dormir.
+
+## Ambiente
+- Cuarto **oscuro, fresco** (18–20 °C) y silencioso.
+- Usa la cama solo para dormir.
+
+## Qué evitar
+- Cafeína después de las 2 p. m.
+- Cenas pesadas y alcohol cerca de la hora de dormir.
+
+Si el insomnio dura más de unas semanas, consulta a un profesional de la salud.`,
+    b: "Duerme más temprano.",
+  },
+  {
+    label: "Formato vs. prosa",
+    prompt: "Dame ideas para una cena rápida.",
+    a: `Aquí tienes algunas ideas:
+
+- **Tacos de pollo** con aguacate
+- **Pasta** con ajo y aceite de oliva
+- **Omelette** de vegetales
+- **Quesadillas** con frijoles`,
+    b: "Algunas ideas son tacos de pollo con aguacate, pasta con ajo y aceite de oliva, un omelette de vegetales o quesadillas con frijoles. Todas se preparan en menos de veinte minutos.",
+  },
+  {
+    label: "Gemelos",
+    prompt: "¿Cuál es la capital de Francia?",
+    a: "La capital de Francia es París.",
+    b: "La capital de Francia es París.",
+  },
+  { label: "Tu turno", prompt: "", a: "", b: "" },
+];
+---
+
+<div class="arena panel bg-grid" data-reveal>
+  <div class="presets" role="group" aria-label="Ejemplos">
+    {
+      presets.map((p, i) => (
+        <button type="button" class:list={["preset", { on: i === 0 }]} data-preset={JSON.stringify(p)}>
+          {p.label}
+        </button>
+      ))
+    }
+  </div>
+
+  <label class="field">
+    <span>Prompt</span>
+    <textarea id="d-prompt" rows="2" placeholder="Escribe la pregunta del usuario…"></textarea>
+  </label>
+
+  <div class="sides">
+    <div class="side sa">
+      <Unit team="a" size={52} hat="helmet" weapon="sword" class="d-unit" />
+      <label class="field">
+        <span>Respuesta A</span>
+        <textarea id="d-a" rows="8" placeholder="Respuesta del modelo A…"></textarea>
+      </label>
+      <small id="d-sa">—</small>
+    </div>
+    <div class="side sb">
+      <Unit team="b" size={52} hat="viking" weapon="club" mood="angry" class="d-unit" />
+      <label class="field">
+        <span>Respuesta B</span>
+        <textarea id="d-b" rows="8" placeholder="Respuesta del modelo B…"></textarea>
+      </label>
+      <small id="d-sb">—</small>
+    </div>
+  </div>
+
+  <div class="go">
+    <button type="button" class="btn" id="d-go">⚔ ¡Que vote el modelo!</button>
+  </div>
+
+  <div class="result" aria-live="polite">
+    <div class="bar">
+      <i class="pa" style="--w:33.3%"></i>
+      <i class="pt" style="--w:33.3%"></i>
+      <i class="pb" style="--w:33.3%"></i>
+    </div>
+    <div class="probs">
+      <span><b id="d-pa">—</b> Gana A</span>
+      <span><b id="d-pt">—</b> Empate</span>
+      <span><b id="d-pb">—</b> Gana B</span>
+    </div>
+    <p class="verdict" id="d-verdict">Elige un ejemplo o escribe tus propias respuestas.</p>
+  </div>
+</div>
+
+<style>
+  .arena {
+    margin: 1.8rem 0 1rem;
+    padding: 1.2rem;
+  }
+
+  .presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 1rem;
+  }
+
+  .preset {
+    font: inherit;
+    font-family: var(--display);
+    font-size: 0.85rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink);
+    padding: 0.25em 0.9em;
+    background: var(--paper);
+    border: 3px solid var(--ink);
+    border-radius: 999px;
+    box-shadow: 0 3px 0 var(--ink);
+    cursor: pointer;
+  }
+
+  .preset.on {
+    background: var(--gold);
+  }
+
+  .preset:active {
+    transform: translateY(3px);
+    box-shadow: none;
+  }
+
+  .field {
+    display: block;
+  }
+
+  .field span {
+    display: block;
+    font-family: var(--display);
+    font-size: 0.85rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 0.2rem;
+  }
+
+  textarea {
+    display: block;
+    width: 100%;
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    line-height: 1.45;
+    color: var(--ink);
+    padding: 0.5rem 0.65rem;
+    background: #fff;
+    border: 3px solid var(--ink);
+    border-radius: 12px;
+    resize: vertical;
+  }
+
+  textarea:focus-visible {
+    outline: 3px solid var(--gold);
+    outline-offset: 1px;
+  }
+
+  .sides {
+    display: grid;
+    gap: 14px;
+    margin-top: 0.6rem;
+  }
+
+  .side {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .side :global(.d-unit) {
+    align-self: center;
+    margin-bottom: -10px;
+  }
+
+  .sb :global(.d-unit) {
+    scale: -1 1;
+  }
+
+  .sa .field span {
+    color: var(--a-dark);
+  }
+
+  .sb .field span {
+    color: var(--b-dark);
+  }
+
+  .side small {
+    margin-top: 0.3rem;
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+
+  .go {
+    margin: 1.4rem 0 1rem;
+    text-align: center;
+  }
+
+  .go .btn {
+    font-size: 1.1rem;
+    cursor: pointer;
+  }
+
+  .bar {
+    display: flex;
+    height: 30px;
+    border: 3px solid var(--ink);
+    border-radius: 999px;
+    overflow: hidden;
+    background: #fff;
+  }
+
+  .bar i {
+    flex: 0 0 var(--w);
+    transition: flex-basis 0.7s var(--pop);
+  }
+
+  .bar i + i {
+    border-left: 3px solid var(--ink);
+  }
+
+  .pa {
+    background: var(--a);
+  }
+
+  .pt {
+    background: var(--tie);
+  }
+
+  .pb {
+    background: var(--b);
+  }
+
+  .probs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    margin-top: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .probs span:first-child {
+    text-align: left;
+  }
+
+  .probs span:last-child {
+    text-align: right;
+  }
+
+  .probs b {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: 1.35rem;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .verdict {
+    margin: 0.8rem 0 0;
+    padding: 0.6rem 0.8rem;
+    font-size: 0.95rem;
+    background: var(--paper);
+    border: 3px solid var(--ink);
+    border-radius: 12px;
+  }
+
+  @media (max-width: 560px) {
+    .probs b {
+      font-size: 1.1rem;
+    }
+  }
+</style>
+
+<script>
+  import { features, predict, type Winner } from "../scripts/predictor";
+
+  const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+  const prompt = $<HTMLTextAreaElement>("d-prompt");
+  const ta = $<HTMLTextAreaElement>("d-a");
+  const tb = $<HTMLTextAreaElement>("d-b");
+  const units = [...document.querySelectorAll<HTMLElement>(".arena [data-unit]")];
+  const bars = [...document.querySelectorAll<HTMLElement>(".arena .bar i")];
+  const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
+  const names: Record<Winner, string> = { A: "A", B: "B", tie: "un empate" };
+
+  function update(fight = false) {
+    const x = features(prompt.value, ta.value, tb.value);
+    const p = predict(x);
+    const order: Winner[] = ["A", "tie", "B"];
+    order.forEach((k, i) => bars[i].style.setProperty("--w", `${p[k] * 100}%`));
+    $("d-pa").textContent = pct(p.A);
+    $("d-pt").textContent = pct(p.tie);
+    $("d-pb").textContent = pct(p.B);
+    $("d-sa").textContent = `${x.len_a.toLocaleString("en-US")} caracteres · ${x.fmt_a} marcas de formato`;
+    $("d-sb").textContent = `${x.len_b.toLocaleString("en-US")} caracteres · ${x.fmt_b} marcas de formato`;
+
+    const best = (Object.keys(p) as Winner[]).reduce((a, b) => (p[b] > p[a] ? b : a));
+    const ratio = (Math.max(x.len_a, x.len_b) + 1) / (Math.min(x.len_a, x.len_b) + 1);
+    const longer = x.len_a > x.len_b ? "A" : "B";
+    const hint =
+      ratio >= 1.5
+        ? ` Pista: ${longer} es ${ratio.toFixed(1)}× más larga.`
+        : " Pista: tienen casi la misma longitud, así que el empate gana terreno.";
+    $("d-verdict").innerHTML = `El modelo apuesta por <strong>${names[best]}</strong> con ${pct(p[best])}.${hint}`;
+
+    // el perdedor sale volando (en empate, los dos)
+    if (fight) {
+      if (best !== "B") units[1].click();
+      if (best !== "A") units[0].click();
+    }
+  }
+
+  let timer = 0;
+  for (const el of [prompt, ta, tb]) {
+    el.addEventListener("input", () => {
+      clearTimeout(timer);
+      timer = window.setTimeout(update, 120);
+    });
+  }
+
+  document.querySelectorAll<HTMLButtonElement>(".arena [data-preset]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const p = JSON.parse(btn.dataset.preset!);
+      prompt.value = p.prompt;
+      ta.value = p.a;
+      tb.value = p.b;
+      document.querySelectorAll(".arena .preset").forEach((b) => b.classList.toggle("on", b === btn));
+      update();
+      if (!p.prompt) prompt.focus();
+    });
+  });
+
+  $("d-go").addEventListener("click", () => update(true));
+
+  // arranca con el primer ejemplo
+  document.querySelector<HTMLButtonElement>(".arena [data-preset]")!.click();
+</script>
