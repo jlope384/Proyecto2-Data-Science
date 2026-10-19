@@ -3,10 +3,16 @@
 // Cada [data-unit] trae un <canvas>. Para no abrir un contexto WebGL por
 // unidad, hay un solo renderer fuera de pantalla: cada cuadro se renderiza la
 // unidad en una esquina del renderer y se copia a su canvas con drawImage.
-// Solo se dibujan las unidades visibles, cada una se arma la primera vez que
-// aparece en pantalla y las piezas rígidas de cada hueso se funden en una sola
-// malla (pocas llamadas de dibujo por unidad). Se anima a 30 cuadros por
-// segundo, que además va con el estilo PS1.
+//
+// Optimizaciones:
+// - Cada combinación (equipo, sombrero, arma, ánimo) se arma una sola vez; las
+//   unidades repetidas clonan esa plantilla y comparten la geometría.
+// - Las piezas que no se mueven solas (ojos, sombrero, arma, globito) se funden
+//   con el hueso animado más cercano: ~1 llamada de dibujo por hueso.
+// - Solo se arman y dibujan las unidades visibles; si no hay ninguna en
+//   pantalla, el ciclo de animación se detiene.
+// - 60 cuadros por segundo si dibujar es barato, 30 si no; los suavizados
+//   dependen del tiempo, así que se mueven igual a cualquier frecuencia.
 //
 // Esqueleto: pelvis → (piernas: muslo → rodilla → espinilla) y
 // columna → (brazos: brazo → codo → antebrazo → mano) y cuello → cabeza.
@@ -35,6 +41,7 @@ import {
   SphereGeometry,
   LatheGeometry,
   Material,
+  Matrix4,
   Object3D,
   TorusGeometry,
   Vector2,
@@ -102,38 +109,70 @@ const shadowMat = new MeshBasicMaterial({ color: "#000", transparent: true, opac
 
 // Material único para el cuerpo ya horneado: el color de cada pieza va en los
 // vértices, así un hueso entero se dibuja de una vez.
-const bodyMat = [false, true].map((double) => {
-  const m = new MeshLambertMaterial({ color: "#ffffff", flatShading: true, vertexColors: true });
-  if (double) m.side = DoubleSide;
-  return m;
-});
+const bodyMat = new MeshLambertMaterial({ color: "#ffffff", flatShading: true, vertexColors: true });
 const tint = new Color();
 
-// Funde las piezas rígidas que cuelgan directamente de cada hueso (grupo) en
-// una malla por material. Las de `keep` (pupilas) se quedan sueltas porque se
-// mueven solas.
-function bake(root: Object3D, keep: Set<Mesh>) {
+// Huesos que se animan; todo lo demás es rígido respecto a alguno de ellos.
+const BONES = new Set(["root", "pelvis", "spine", "neck", "head"]);
+for (const l of ["legL", "legR", "armL", "armR"]) BONES.add(l).add(`${l}-low`);
+const isBone = (o: Object3D) => BONES.has(o.name);
+
+const inv = new Matrix4();
+const rel = new Matrix4();
+
+// Copia de una pieza de doble cara con los triángulos volteados: así la cara de
+// atrás también se ve con el material normal (de una sola cara).
+function backFaces(g: BufferGeometry) {
+  const b = g.clone();
+  for (const k of ["position", "normal", "color"]) {
+    const a = b.getAttribute(k);
+    if (!a) continue;
+    for (let i = 0; i < a.count; i += 3) {
+      const [x, y, z] = [a.getX(i + 1), a.getY(i + 1), a.getZ(i + 1)];
+      a.setXYZ(i + 1, a.getX(i + 2), a.getY(i + 2), a.getZ(i + 2));
+      a.setXYZ(i + 2, x, y, z);
+    }
+  }
+  const n = b.getAttribute("normal");
+  for (let i = 0; i < n.count; i++) n.setXYZ(i, -n.getX(i), -n.getY(i), -n.getZ(i));
+  return b;
+}
+
+// Funde en cada hueso todas las piezas rígidas que cuelgan de él (aunque estén
+// dentro de subgrupos como el sombrero o el arma), con el color horneado en
+// los vértices: queda una malla de cuerpo y, si hay, una de tinta (cejas,
+// puntitos). Las de `keep` (pupilas) se quedan sueltas porque se mueven solas.
+function bake(root: Object3D, keep: Set<Object3D>) {
+  root.updateMatrixWorld(true);
   const bones: Object3D[] = [];
   root.traverse((o) => {
-    if (!(o instanceof Mesh)) bones.push(o);
+    if (isBone(o)) bones.push(o);
   });
   for (const bone of bones) {
-    const parts = bone.children.filter((o): o is Mesh => o instanceof Mesh && !keep.has(o));
-    if (parts.length < 2) continue;
-    const buckets = new Map<Material, BufferGeometry[]>();
+    const parts: Mesh[] = [];
+    const walk = (o: Object3D) => {
+      for (const c of o.children) {
+        if (isBone(c) || keep.has(c)) continue;
+        if (c instanceof Mesh) parts.push(c);
+        else walk(c);
+      }
+    };
+    walk(bone);
+    if (!parts.length) continue;
+
+    inv.copy(bone.matrixWorld).invert();
+    const body: BufferGeometry[] = [];
+    const ink: BufferGeometry[] = [];
     for (const m of parts) {
       const src = m.material as MeshLambertMaterial | MeshBasicMaterial;
-      m.updateMatrix();
       const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
-      g.applyMatrix4(m.matrix);
+      g.applyMatrix4(rel.multiplyMatrices(inv, m.matrixWorld));
       for (const k of Object.keys(g.attributes)) if (k !== "position" && k !== "normal" && k !== "color") g.deleteAttribute(k);
       if (!g.getAttribute("normal")) g.computeVertexNormals();
-      let target: Material;
       if (src === pupilMat) {
-        target = pupilMat;
         if (g.getAttribute("color")) g.deleteAttribute("color");
+        ink.push(g);
       } else {
-        target = bodyMat[src.side === DoubleSide ? 1 : 0];
         tint.copy(src.color);
         const tone = g.getAttribute("color");
         const n = g.getAttribute("position").count;
@@ -145,18 +184,67 @@ function bake(root: Object3D, keep: Set<Mesh>) {
           col[i * 3 + 2] = tint.b * t;
         }
         g.setAttribute("color", new BufferAttribute(col, 3));
+        body.push(g);
+        if (src.side === DoubleSide) body.push(backFaces(g));
       }
-      if (!buckets.has(target)) buckets.set(target, []);
-      buckets.get(target)!.push(g);
       m.geometry.dispose();
-      bone.remove(m);
+      m.removeFromParent();
     }
-    for (const [material, geos] of buckets) {
+    for (const [geos, material] of [
+      [body, bodyMat],
+      [ink, pupilMat],
+    ] as const) {
+      if (!geos.length) continue;
       const merged = mergeGeometries(geos);
       geos.forEach((g) => g.dispose());
-      if (merged) bone.add(new Mesh(merged, material));
+      if (!merged) continue;
+      const fused = new Mesh(merged, material);
+      fused.matrixAutoUpdate = false; // queda en el origen del hueso
+      bone.add(fused);
     }
   }
+  // quita los grupos rígidos que quedaron vacíos (menos nodos que recorrer)
+  const empty: Object3D[] = [];
+  root.traverse((o) => {
+    if (!isBone(o) && !(o instanceof Mesh) && o !== root && o.children.length === 0) empty.push(o);
+  });
+  empty.forEach((o) => o.removeFromParent());
+}
+
+// Arma el Model buscando los huesos por nombre (sirve para la plantilla y
+// para sus clones).
+function rig(base: Group): Model {
+  const get = (n: string) => base.getObjectByName(n) as Group;
+  const limb = (n: string): Limb => ({ upper: get(n), lower: get(`${n}-low`) });
+  const pupils: Model["pupils"] = [];
+  base.traverse((o) => {
+    if (o.name === "pupil") pupils.push({ mesh: o as Mesh, r: o.userData.r });
+  });
+  return {
+    base,
+    root: get("root"),
+    pelvis: get("pelvis"),
+    spine: get("spine"),
+    neck: get("neck"),
+    head: get("head"),
+    armL: limb("armL"),
+    armR: limb("armR"),
+    legL: limb("legL"),
+    legR: limb("legR"),
+    pupils,
+  };
+}
+
+// Una plantilla por combinación; la primera unidad la usa tal cual y las
+// demás la clonan (los clones comparten geometría y materiales).
+const templates = new Map<string, Group>();
+function modelFor(o: Opts): Model {
+  const key = `${o.team}|${o.hat}|${o.weapon}|${o.mood}`;
+  const tpl = templates.get(key);
+  if (tpl) return rig(tpl.clone());
+  const m = build(o);
+  templates.set(key, m.base);
+  return m;
 }
 
 const mesh = (g: BufferGeometry, color: string, x = 0, y = 0, z = 0) => {
@@ -253,6 +341,8 @@ function build(o: Opts): Model {
   const shadow = new Mesh(new CircleGeometry(0.7, 12), shadowMat);
   shadow.rotation.x = -Math.PI / 2;
   shadow.position.y = 0.005;
+  shadow.updateMatrix();
+  shadow.matrixAutoUpdate = false;
   base.add(shadow);
 
   // cadera: la parte baja de la panza, con el color del pantalón
@@ -357,9 +447,29 @@ function build(o: Opts): Model {
     if (obj.userData.poly === "eye") polyfy(obj, 0, 0.02);
     else polyfy(obj, 0.004, 0.04);
   });
+  // nombres de los huesos: rig() los busca así en la plantilla y en sus clones
+  root.name = "root";
+  pelvis.name = "pelvis";
+  spine.name = "spine";
+  neck.name = "neck";
+  head.name = "head";
+  const limbs: [string, Limb][] = [
+    ["legL", legs[0]],
+    ["legR", legs[1]],
+    ["armL", arms[0]],
+    ["armR", arms[1]],
+  ];
+  for (const [n, l] of limbs) {
+    l.upper.name = n;
+    l.lower.name = `${n}-low`;
+  }
+  for (const p of pupils) {
+    p.mesh.name = "pupil";
+    p.mesh.userData.r = p.r;
+  }
   bake(root, new Set(pupils.map((p) => p.mesh)));
 
-  return { base, root, pelvis, spine, neck, head, armL: arms[0], armR: arms[1], legL: legs[0], legR: legs[1], pupils };
+  return rig(base);
 }
 
 // Sombreros: siempre por encima de la línea de los ojos
@@ -451,6 +561,7 @@ interface Unit {
   action: { type: Action; start: number; dur: number } | null;
   nextAction: number;
   look: { x: number; y: number; tx: number; ty: number };
+  drawn: number; // último cuadro dibujado (ms), para suavizar según el tiempo
 }
 
 const RAGDOLL_MS = 1500;
@@ -464,7 +575,10 @@ function setLimb(l: Limb, ux: number, uz: number, lx: number, uy = 0) {
   l.lower.rotation.set(lx, 0, 0);
 }
 
-function pose(u: Unit, m: Model, now: number) {
+// Constante de tiempo de la mirada: igual que acercarse 15% por cuadro a 60 fps
+const LOOK_MS = 100;
+
+function pose(u: Unit, m: Model, now: number, dt: number) {
   const t = now / 1000 + u.phase;
   const { root, pelvis, spine, neck, head, armL, armR, legL, legR } = m;
 
@@ -617,16 +731,18 @@ function pose(u: Unit, m: Model, now: number) {
     }
   }
 
-  // pupilas: se suavizan hacia donde está el cursor (0.28 a 30 fps ≈ 0.15 a 60)
-  u.look.x += (u.look.tx - u.look.x) * 0.28;
-  u.look.y += (u.look.ty - u.look.y) * 0.28;
+  // pupilas: se suavizan hacia donde está el cursor, igual a 30 o 60 fps
+  const k = 1 - Math.exp(-dt / LOOK_MS);
+  u.look.x += (u.look.tx - u.look.x) * k;
+  u.look.y += (u.look.ty - u.look.y) * k;
   for (const { mesh: p, r } of m.pupils) {
     p.position.set(u.look.x * r * 0.4, -u.look.y * r * 0.4, r * 0.62);
   }
 }
 
 // ---------- arranque ----------
-const FRAME_MS = 1000 / 30;
+const FAST = 1000 / 60;
+const SLOW = 1000 / 30;
 
 function init() {
   const els = [...document.querySelectorAll<HTMLElement>("[data-unit]")];
@@ -688,6 +804,7 @@ function init() {
       action: null,
       nextAction: start + 1500 + ((i * 2311) % 7000),
       look: { x: 0, y: 0, tx: 0, ty: 0 },
+      drawn: 0,
     };
   });
   const byEl = new Map(units.map((u) => [u.el, u]));
@@ -723,13 +840,15 @@ function init() {
   measure();
 
   const draw = (u: Unit, now: number) => {
-    if (!u.model) u.model = build(u.opts);
-    pose(u, u.model, now);
+    if (!u.model) u.model = modelFor(u.opts);
+    // tras una pausa (fuera de pantalla) no se acumula un salto enorme
+    const dt = u.drawn ? Math.min(now - u.drawn, 100) : 0;
+    u.drawn = now;
+    pose(u, u.model, now, dt);
     scene.add(u.model.base);
     renderer.setViewport(0, 0, u.w, u.h);
     renderer.setScissor(0, 0, u.w, u.h);
-    renderer.clear();
-    renderer.render(scene, camera);
+    renderer.render(scene, camera); // autoClear limpia solo la región del scissor
     scene.remove(u.model.base);
     u.ctx.clearRect(0, 0, u.w, u.h);
     // el viewport de WebGL empieza abajo a la izquierda
@@ -742,7 +861,9 @@ function init() {
       for (const e of entries) {
         const u = byEl.get(e.target as HTMLElement)!;
         u.visible = e.isIntersecting;
-        if (u.visible && reduced) draw(u, 0);
+        if (!u.visible) u.drawn = 0;
+        else if (reduced) draw(u, 0);
+        else wake();
       }
     },
     { rootMargin: "120px 0px" },
@@ -787,22 +908,42 @@ function init() {
 
   if (reduced) return;
 
+  // Frecuencia adaptativa: 60 fps mientras dibujar cueste poco y 30 fps si
+  // se pone caro (con histéresis para no oscilar). Si no hay ninguna unidad
+  // en pantalla el ciclo se apaga y el IntersectionObserver lo despierta.
+  let frameMs = FAST;
+  let cost = 0;
   let last = 0;
+  let running = false;
   const loop = (now: number) => {
+    if (!units.some((u) => u.visible)) {
+      running = false;
+      return;
+    }
     requestAnimationFrame(loop);
-    if (now - last < FRAME_MS - 2) return;
+    if (now - last < frameMs - 2) return;
     last = now;
     aim();
     // sin cursor un rato: miran de un lado a otro solos
     if (now - lastMove > 2500) {
       for (const u of units) {
+        if (!u.visible) continue;
         u.look.tx = Math.sin(now / 1300 + u.phase) * 0.7;
         u.look.ty = Math.sin(now / 1700 + u.phase * 2) * 0.25;
       }
     }
+    const t0 = performance.now();
     for (const u of units) if (u.visible) draw(u, now);
+    cost += (performance.now() - t0 - cost) * 0.1;
+    if (cost > 8) frameMs = SLOW;
+    else if (cost < 4) frameMs = FAST;
   };
-  requestAnimationFrame(loop);
+  function wake() {
+    if (running) return;
+    running = true;
+    requestAnimationFrame(loop);
+  }
+  wake();
 }
 
 init();
