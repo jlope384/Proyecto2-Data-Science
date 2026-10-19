@@ -91,7 +91,38 @@ const challenges = [
   },
 ];
 
+const objectives = [
+  "Realizar una revisión bibliográfica de los algoritmos y arquitecturas usados para modelar preferencias humanas sobre texto generado por LLM.",
+  "Limpiar, preprocesar y explorar el conjunto de datos de Chatbot Arena para identificar patrones y sesgos relevantes, como la longitud de la respuesta, la posición y la identidad del modelo.",
+  "Construir al menos tres modelos con algoritmos distintos y ajustar sus hiperparámetros con validación cruzada.",
+  "Evaluar y comparar los modelos con métricas adecuadas para clasificación probabilística multiclase (log loss, exactitud, F1 macro y calibración), además de su costo computacional.",
+  "Desarrollar una aplicación interactiva que permita explorar los datos, ingresar un prompt con dos respuestas nuevas y visualizar la predicción de cada modelo y su rendimiento en el conjunto de prueba.",
+];
+
 const conclusions = [
+  {
+    t: "Revisión bibliográfica",
+    d: "La literatura sobre Chatbot Arena, LLM como jueces y modelos de recompensa señaló dos fuentes de información: los sesgos de superficie del votante (longitud, formato y posición) y la calidad del contenido. Con base en ello se eligió una progresión de algoritmos viable sin GPU y se documentó el enfoque de mayor rendimiento (transformers ajustados) como siguiente paso.",
+  },
+  {
+    t: "Limpieza, preprocesamiento y exploración",
+    d: "Se limpió el conjunto (57,470 batallas tras eliminar 7 duplicados) y se derivaron 18 variables, incluidas las comparativas A–B. El EDA identificó el sesgo de verbosidad (la respuesta más larga gana el 61.5 % de las batallas decididas), un sesgo de formato ligado a la longitud, un sesgo de posición leve y el gran peso de la identidad del modelo, que no se usó por no estar disponible al predecir.",
+  },
+  {
+    t: "Construcción y ajuste de modelos",
+    d: "Se construyeron tres algoritmos distintos —regresión logística estructural, regresión logística con TF-IDF y HistGradientBoosting— además de una línea base. Se ajustaron con GridSearchCV y validación cruzada estratificada, y la calibración sigmoide fue el ajuste de mayor impacto.",
+  },
+  {
+    t: "Evaluación y comparación",
+    d: "Todos los modelos superan al azar. El mejor (LogReg TF-IDF + estructura) obtiene una log loss de 1.0414 y una exactitud de 47.3 %, frente a 1.0972 y 34.9 % de la línea base; HistGB ajustado logra casi lo mismo (1.0460) en unas 13 veces menos tiempo y reconoce mejor los empates.",
+  },
+  {
+    t: "Aplicación",
+    d: "La aplicación en Streamlit preprocesa entradas nuevas de forma automática, permite usar uno o todos los modelos, cuenta la historia de los datos y muestra el rendimiento con gráficas interactivas que el usuario puede ocultar.",
+  },
+];
+
+const futureWork = [
   "Modelo baseline con las variables ya derivadas (longitud, formato, turnos), evaluado con log-loss multiclase.",
   "Incorporar representación del contenido: TF-IDF y luego embeddings o fine-tuning de un transformer (DeBERTa, Gemma, etc.).",
   "Validación cruzada sin fuga de información entre filas que compartan prompt o modelos.",
@@ -158,10 +189,9 @@ const conclusions = [
           es decir, con una log-loss menor que ln(3) ≈ 1.099.
         </p>
         <ul class="quests" data-stagger>
-          <li class="bg-notebook" data-reveal="left"><span class="check"></span>Limpiar el dataset y derivar variables cuantitativas del texto.</li>
-          <li class="bg-notebook" data-reveal="left"><span class="check"></span>Medir los sesgos del voto (verbosidad, formato, posición) y su magnitud.</li>
-          <li class="bg-notebook" data-reveal="left"><span class="check"></span>Entrenar y comparar modelos multiclase con log-loss como métrica principal.</li>
-          <li class="bg-notebook" data-reveal="left"><span class="check"></span>Poner los modelos en vivo en una aplicación interactiva.</li>
+          {objectives.map((o) => (
+            <li class="bg-notebook" data-reveal="left"><span class="check"></span>{o}</li>
+          ))}
         </ul>
       </Section>
 
@@ -388,7 +418,15 @@ const conclusions = [
         </div>
 
         <ol class="campaign" data-stagger>
-          {conclusions.map((s) => <li data-reveal="left">{s}</li>)}
+          {conclusions.map((c) => (
+            <li data-reveal="left"><strong>{c.t}.</strong> {c.d}</li>
+          ))}
+        </ol>
+      </Section>
+
+      <Section id="trabajo-futuro" num="5-2" kicker="Próxima campaña" title="Trabajo futuro">
+        <ol class="campaign" data-stagger>
+          {futureWork.map((s) => <li data-reveal="left">{s}</li>)}
         </ol>
       </Section>
 

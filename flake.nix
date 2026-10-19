@@ -64,6 +64,11 @@
               pkgs.nodejs
             ];
 
+            # las wheels de pip en app/.venv (run.sh) necesitan libstdc++ y zlib
+            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+              pkgs.stdenv.cc.cc.lib
+              pkgs.zlib
+            ];
           };
         }
       );
