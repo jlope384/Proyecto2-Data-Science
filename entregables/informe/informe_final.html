@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Informe final — Chatbot Arena</title>
+<style>
+  :root {
+    --navy: #1D3557; --navy-2: #2E4A70; --gold: #B0893B; --muted: #5B6B7F;
+    --rule: #DDE3EA; --zebra: #F4F6F9; --A: #2E6FBA; --B: #E8833A; --tie: #9AA0A6;
+  }
+  @page { size: Letter; margin: 22mm 20mm 20mm 20mm;
+    @bottom-center { content: counter(page); font: 9pt "Segoe UI", sans-serif; color: #8592A3; } }
+  @page :first { @bottom-center { content: none; } }
+  html { font: 10.6pt/1.55 Georgia, "Times New Roman", serif; color: #1F2933; }
+  body { margin: 0; background: #fff; }
+  h1, h2, h3, h4, .sans, table, figcaption, .kicker, .toc { font-family: "Segoe UI", "Trebuchet MS", sans-serif; }
+  h1 { color: var(--navy); font-size: 20pt; margin: 0 0 14px; padding-bottom: 6px; border-bottom: 3px solid var(--navy);
+       break-before: page; }
+  h1 .n { color: #7C8FA8; font-weight: 400; margin-right: 6px; }
+  h2 { color: var(--navy-2); font-size: 13.5pt; margin: 22px 0 8px; break-after: avoid; }
+  h3 { color: var(--navy-2); font-size: 11.5pt; margin: 16px 0 6px; break-after: avoid; }
+  p { margin: 0 0 9px; text-align: justify; hyphens: auto; }
+  ul, ol { margin: 0 0 10px; padding-left: 22px; }
+  li { margin-bottom: 4px; }
+  code { font: 9pt Consolas, monospace; background: #EEF1F5; padding: 1px 4px; border-radius: 3px; }
+  a { color: var(--navy-2); }
+  figure { margin: 14px 0 16px; text-align: center; break-inside: avoid; }
+  figure img { max-width: 100%; border: 1px solid var(--rule); border-radius: 4px; }
+  figure.shot img { max-height: 205mm; width: auto; max-width: 100%; }
+  figcaption { font: italic 9pt Georgia, serif; color: var(--muted); margin-top: 6px; }
+  table { border-collapse: collapse; width: 100%; font-size: 9.2pt; margin: 6px 0 14px; break-inside: avoid; }
+  caption { caption-side: top; text-align: left; font-weight: 600; color: var(--navy-2); font-size: 9.5pt; padding-bottom: 5px; }
+  th { background: var(--navy); color: #fff; font-weight: 500; text-align: left; padding: 6px 8px; }
+  td { padding: 5px 8px; border-bottom: 1px solid var(--rule); font-family: Georgia, serif; }
+  tr:nth-child(even) td { background: var(--zebra); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.best td { background: #E6F2EF !important; font-weight: 600; }
+  .box { background: #F4F6F9; border-left: 4px solid var(--navy-2); padding: 10px 14px; margin: 12px 0; break-inside: avoid; }
+  .box .kicker { font-size: 8.5pt; letter-spacing: .12em; text-transform: uppercase; color: var(--navy-2); font-weight: 700; display: block; margin-bottom: 3px; }
+  .refs p { padding-left: 2.2em; text-indent: -2.2em; text-align: left; margin-bottom: 8px; }
+  .two { display: flex; gap: 12px; } .two figure { flex: 1; margin: 6px 0; }
+  .A { color: var(--A); font-weight: 700; } .B { color: var(--B); font-weight: 700; } .tie { color: #6F757B; font-weight: 700; }
+  /* Portada */
+  .cover { height: 230mm; display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .cover .uni { font: 9.5pt "Segoe UI", sans-serif; letter-spacing: .3em; color: #7C8FA8; margin-top: 18mm; }
+  .cover .logo { width: 72px; height: 72px; border: 3px solid var(--navy); border-radius: 50%; display: flex;
+                 align-items: center; justify-content: center; font: 700 22pt "Segoe UI", sans-serif; color: var(--navy); margin: 22mm 0 0; }
+  .cover .title { font: 700 28pt "Segoe UI", sans-serif; color: var(--navy); margin-top: 42mm; }
+  .cover .sub { font: 14pt "Segoe UI", sans-serif; color: var(--navy-2); margin: 6px 30px 0; }
+  .cover .bar { width: 70px; height: 4px; background: var(--gold); margin: 16px 0; }
+  .cover .pill { font: 10pt "Segoe UI", sans-serif; background: #F7F1E3; border: 1px solid #E3D3A8; border-radius: 20px; padding: 7px 20px; color: #5B4A22; }
+  .cover .meta { margin-top: auto; font: 10.5pt "Segoe UI", sans-serif; }
+  .cover .meta table { width: auto; margin: 10px auto 0; font-size: 10.5pt; }
+  .cover .meta td { border: 0; background: none !important; padding: 2px 10px; font-family: "Segoe UI", sans-serif; }
+  .cover .meta td:first-child { color: #7C8FA8; text-align: right; }
+  .toc { break-before: page; }
+  .toc h2 { font-size: 16pt; color: var(--navy); }
+  .toc ol { list-style: none; padding: 0; font-size: 11pt; }
+  .toc > ol > li { margin: 9px 0 3px; } .toc > ol > li > b { color: var(--gold); margin-right: 4px; }
+  .toc ol ol { padding-left: 24px; font-size: 9.8pt; color: var(--navy-2); }
+  .toc ol ol li { margin: 2px 0; }
+</style>
+</head>
+<body>
+
+<!-- ======================= PORTADA ======================= -->
+<section class="cover">
+  <div class="uni">UNIVERSIDAD DEL VALLE DE GUATEMALA · CIENCIA DE DATOS</div>
+  <div class="logo">DS</div>
+  <div class="title">Informe final de resultados</div>
+  <div class="sub">Predicción de la preferencia humana en batallas de modelos de lenguaje: el caso de Chatbot Arena</div>
+  <div class="bar"></div>
+  <div class="pill">CC3084 – Data Science · Proyecto 2 · Reto 10</div>
+  <div class="meta">
+    <table>
+      <tr><td>Integrantes:</td><td>Javier López</td></tr>
+      <tr><td></td><td>Pedro Ávila</td></tr>
+      <tr><td></td><td>Brandon Rivera</td></tr>
+      <tr><td>Grupo:</td><td>5</td></tr>
+      <tr><td>Repositorio:</td><td>github.com/jlope384/Proyecto2-Data-Science</td></tr>
+      <tr><td>Fecha:</td><td>18 de octubre de 2026</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ======================= ÍNDICE ======================= -->
+<section class="toc">
+  <h2>Contenido</h2>
+  <ol>
+    <li><b>1.</b> Introducción
+      <ol><li>1.1 Contexto</li><li>1.2 Planteamiento del problema</li><li>1.3 Contenido del informe</li></ol></li>
+    <li><b>2.</b> Objetivos
+      <ol><li>2.1 Objetivo general</li><li>2.2 Objetivos específicos</li></ol></li>
+    <li><b>3.</b> Marco teórico
+      <ol><li>3.1 Procesamiento del lenguaje natural</li><li>3.2 Actividades de preprocesamiento</li>
+          <li>3.3 Algoritmos usados en PLN y en modelado de preferencias</li><li>3.4 Revisión bibliográfica: trabajos relacionados</li>
+          <li>3.5 Métricas de evaluación</li></ol></li>
+    <li><b>4.</b> Metodología
+      <ol><li>4.1 Pasos seguidos</li><li>4.2 Conjuntos de entrenamiento y prueba</li>
+          <li>4.3 Selección de algoritmos</li><li>4.4 Herramientas y recursos</li></ol></li>
+    <li><b>5.</b> Resultados y análisis de resultados
+      <ol><li>5.1 Conjunto de datos original</li><li>5.2 Limpieza y preprocesamiento</li>
+          <li>5.3 Análisis exploratorio</li><li>5.4 Ajuste de parámetros</li>
+          <li>5.5 Comparación de los algoritmos</li><li>5.6 La aplicación</li></ol></li>
+    <li><b>6.</b> Conclusiones</li>
+    <li><b>7.</b> Referencias</li>
+  </ol>
+</section>
+
+<!-- ======================= 1. INTRODUCCIÓN ======================= -->
+<h1><span class="n">1.</span>Introducción</h1>
+
+<h2>1.1 Contexto</h2>
+<p>Los modelos de lenguaje de gran escala (LLM) ya no se evalúan solo con benchmarks estáticos de
+respuesta única: la calidad conversacional que percibe una persona se mide cada vez más con
+<b>preferencias humanas</b>. Chatbot Arena, la plataforma de LMSYS descrita por Chiang et al. (2024),
+recoge esas preferencias mediante comparaciones pareadas: un usuario escribe un mensaje, dos modelos
+anónimos responden en paralelo y el usuario elige la respuesta que prefiere o declara un empate. Con
+millones de votos se ajusta un ranking de tipo Bradley–Terry (Bradley &amp; Terry, 1952).</p>
+<p>Las comparaciones pareadas son también la base del aprendizaje por refuerzo con retroalimentación
+humana (RLHF): a partir de pares de respuestas etiquetadas se entrena un <i>modelo de recompensa</i> que
+luego guía el ajuste del LLM (Christiano et al., 2017; Ouyang et al., 2022). Predecir el voto humano a
+partir del texto es, por lo tanto, el primer paso para construir un modelo de recompensa.</p>
+
+<h2>1.2 Planteamiento del problema</h2>
+<div class="box"><span class="kicker">Problema</span>
+Dado un <i>prompt</i> y dos respuestas generadas por dos LLM distintos, predecir la probabilidad de que
+un usuario humano prefiera la respuesta <span class="A">A</span>, la respuesta <span class="B">B</span> o
+declare un <span class="tie">empate</span>, usando únicamente el texto de la conversación (sin conocer la
+identidad de los modelos).</div>
+<p>El problema es una <b>clasificación multiclase probabilística</b> de procesamiento del lenguaje
+natural, planteada en la competencia de Kaggle <i>LMSYS – Chatbot Arena Human Preference
+Predictions</i>, cuya métrica oficial es la pérdida logarítmica multiclase (log loss). Su dificultad
+proviene de tres fuentes: el voto humano es ruidoso y subjetivo; las personas tienen sesgos sistemáticos
+—prefieren respuestas más largas y con más formato— (Zheng et al., 2023), y la clase “empate” es casi
+tan frecuente como las otras dos.</p>
+
+<h2>1.3 Contenido del informe</h2>
+<p>Este informe reúne todo el proyecto. La sección 2 plantea los objetivos; la sección 3 presenta el
+marco teórico y la revisión bibliográfica que guió la selección de algoritmos; la sección 4 describe la
+metodología; la sección 5 presenta el conjunto de datos, la limpieza, el análisis exploratorio, el ajuste
+de los modelos, su comparación y la aplicación interactiva construida para probarlos; la sección 6
+resume las conclusiones con respecto a cada objetivo.</p>
+
+<!-- ======================= 2. OBJETIVOS ======================= -->
+<h1><span class="n">2.</span>Objetivos</h1>
+<h2>2.1 Objetivo general</h2>
+<p>Construir y evaluar modelos de aprendizaje automático que predigan la preferencia humana (A, B o
+empate) en batallas de Chatbot Arena a partir del texto de la conversación, y ponerlos a disposición
+de un usuario mediante una aplicación interactiva.</p>
+<h2>2.2 Objetivos específicos</h2>
+<ol>
+  <li>Revisar la literatura sobre modelado de preferencias humanas y clasificación de texto para
+      seleccionar algoritmos adecuados al problema.</li>
+  <li>Limpiar el conjunto de datos y derivar variables cuantitativas del texto que capturen los sesgos
+      identificados en el análisis exploratorio (longitud, formato, turnos).</li>
+  <li>Entrenar al menos tres modelos de clasificación, ajustar sus hiperparámetros y compararlos en un
+      conjunto de prueba independiente usando log loss, exactitud, F1 macro y tiempo de entrenamiento.</li>
+  <li>Desarrollar una aplicación que permita explorar los datos, clasificar batallas nuevas con uno o
+      todos los modelos y visualizar de forma interactiva su rendimiento.</li>
+</ol>
+
+<!-- ======================= 3. MARCO TEÓRICO ======================= -->
+<h1><span class="n">3.</span>Marco teórico</h1>
+
+<h2>3.1 Procesamiento del lenguaje natural</h2>
+<p>El procesamiento del lenguaje natural (PLN) es el área de la inteligencia artificial que estudia
+cómo representar, analizar y generar lenguaje humano con computadoras (Jurafsky &amp; Martin, 2024).
+Sus tareas van desde la clasificación de documentos y el análisis de sentimiento hasta la traducción y
+la generación de texto. El problema de este proyecto es una tarea de <b>clasificación de pares de
+textos</b>: la entrada es una tripleta (prompt, respuesta A, respuesta B) y la salida es una
+distribución de probabilidad sobre tres clases. Como los algoritmos de aprendizaje automático operan
+sobre vectores numéricos, el núcleo de cualquier solución es la forma de <i>representar</i> el texto.</p>
+
+<h2>3.2 Actividades de preprocesamiento</h2>
+<ul>
+  <li><b>Decodificación y normalización:</b> convertir el texto almacenado (en este caso, listas JSON
+      con un elemento por turno) en cadenas utilizables y tratar valores nulos o vacíos.</li>
+  <li><b>Tokenización:</b> dividir el texto en unidades (palabras o subpalabras). Las representaciones
+      clásicas usan palabras y <i>n</i>-gramas; los transformers usan subpalabras (Devlin et al., 2019).</li>
+  <li><b>Filtrado del vocabulario:</b> descartar términos muy raros (frecuencia mínima de documento) o
+      limitar el número de rasgos para controlar la dimensionalidad.</li>
+  <li><b>Ponderación TF-IDF:</b> la frecuencia de término (TF) se multiplica por la frecuencia inversa de
+      documento (IDF) para dar más peso a los términos característicos de un texto y menos a los
+      ubicuos (Salton &amp; Buckley, 1988; Manning et al., 2008). La variante <i>sublineal</i> usa
+      1 + log(tf) para amortiguar repeticiones.</li>
+  <li><b>Ingeniería de rasgos de superficie:</b> longitud en caracteres y palabras, número de turnos y
+      conteo de elementos de formato markdown. No capturan significado, pero miden sesgos conocidos del
+      evaluador humano (Zheng et al., 2023).</li>
+  <li><b>Escalamiento:</b> estandarizar las variables numéricas (media 0, desviación 1) para que los
+      modelos lineales regularizados las traten en la misma escala.</li>
+</ul>
+
+<h2>3.3 Algoritmos usados en PLN y en modelado de preferencias</h2>
+<h3>Modelos de comparación pareada</h3>
+<p>El modelo de Bradley–Terry (Bradley &amp; Terry, 1952) asigna a cada competidor una “fuerza” y modela
+la probabilidad de que <i>i</i> venza a <i>j</i> como una función logística de la diferencia de fuerzas.
+Es la base del ranking de Chatbot Arena y de los modelos de recompensa de RLHF, donde la “fuerza” es un
+puntaje que una red neuronal asigna a cada respuesta (Ouyang et al., 2022). Su idea central —comparar
+A contra B mediante <b>diferencias</b>— inspiró las variables comparativas de este proyecto.</p>
+<h3>Regresión logística multinomial</h3>
+<p>Modelo lineal que estima la probabilidad de cada clase mediante la función softmax de combinaciones
+lineales de los rasgos. Con regularización L2 es un estándar robusto para clasificación de texto con
+representaciones dispersas de alta dimensión como TF-IDF, es interpretable (sus coeficientes indican
+la dirección del efecto de cada variable) y se entrena rápido (Hastie et al., 2009).</p>
+<h3>Gradient boosting de árboles</h3>
+<p>Ensamble aditivo de árboles de decisión poco profundos, cada uno ajustado al gradiente de la función
+de pérdida de los anteriores (Friedman, 2001). Captura relaciones no lineales e interacciones entre
+variables sin necesidad de escalamiento. Las implementaciones basadas en histogramas, como LightGBM
+(Ke et al., 2017) y XGBoost (Chen &amp; Guestrin, 2016), discretizan los rasgos para entrenar órdenes de
+magnitud más rápido; scikit-learn ofrece <code>HistGradientBoostingClassifier</code>, inspirado en
+LightGBM (Pedregosa et al., 2011).</p>
+<h3>Transformers y LLM ajustados</h3>
+<p>La arquitectura transformer (Vaswani et al., 2017) y los modelos preentrenados como BERT (Devlin et
+al., 2019) y DeBERTa (He et al., 2021) producen representaciones contextuales del texto que, ajustadas
+sobre la tarea, superan a los métodos léxicos en casi todas las tareas de PLN. Los modelos de
+recompensa modernos son LLM ajustados con una cabeza de clasificación (Ouyang et al., 2022), y el ajuste
+eficiente con adaptadores de bajo rango (LoRA) hace posible entrenarlos con menos memoria (Hu et al.,
+2022).</p>
+<h3>Calibración de probabilidades</h3>
+<p>Un clasificador puede ordenar bien las clases y aun así dar probabilidades sobreconfiadas. La
+calibración de Platt ajusta una función sigmoide sobre los puntajes del modelo en datos no usados para
+entrenarlo (Platt, 1999); Niculescu-Mizil y Caruana (2005) mostraron que corrige sistemáticamente las
+distorsiones de varios algoritmos. Es especialmente relevante cuando la métrica es log loss.</p>
+
+<h2>3.4 Revisión bibliográfica: trabajos relacionados</h2>
+<table>
+  <caption>Tabla 1. Trabajos revisados y su aporte a este proyecto</caption>
+  <tr><th style="width:26%">Trabajo</th><th>Enfoque</th><th style="width:34%">Aporte a este proyecto</th></tr>
+  <tr><td>Chiang et al. (2024)</td><td>Plataforma Chatbot Arena; ranking Bradley–Terry a partir de votos pareados.</td><td>Origen de los datos y formulación de A/B/empate.</td></tr>
+  <tr><td>Zheng et al. (2023)</td><td>LLM como juez; documentan sesgos de posición, verbosidad y autopreferencia.</td><td>Motiva las variables de longitud y formato y el análisis por sesgos.</td></tr>
+  <tr><td>Wang et al. (2024)</td><td>Muestran que los LLM jueces cambian su veredicto al intercambiar el orden de A y B.</td><td>Justifica usar variables simétricas (diferencias) y vigilar la posición.</td></tr>
+  <tr><td>Ouyang et al. (2022); Christiano et al. (2017)</td><td>Modelos de recompensa entrenados con comparaciones humanas para RLHF.</td><td>Marco del problema: predecir preferencias es aprender una recompensa.</td></tr>
+  <tr><td>Salton &amp; Buckley (1988)</td><td>Esquemas de ponderación de términos (TF-IDF).</td><td>Representación del contenido textual en el modelo 2.</td></tr>
+  <tr><td>Friedman (2001); Ke et al. (2017)</td><td>Gradient boosting y su versión eficiente por histogramas.</td><td>Modelo no lineal sobre variables estructurales (modelo 3).</td></tr>
+  <tr><td>Platt (1999); Niculescu-Mizil &amp; Caruana (2005)</td><td>Calibración de probabilidades.</td><td>Calibración sigmoide del modelo TF-IDF.</td></tr>
+  <tr><td>Devlin et al. (2019); He et al. (2021); Hu et al. (2022)</td><td>Transformers preentrenados y ajuste eficiente.</td><td>Enfoque de mayor rendimiento, propuesto como trabajo futuro.</td></tr>
+</table>
+<p>La literatura coincide en dos puntos que orientaron el proyecto. Primero, el voto humano está
+fuertemente influido por rasgos de <b>superficie</b> como la longitud y el formato (Zheng et al., 2023),
+de modo que esas variables por sí solas deberían superar al azar. Segundo, los mejores modelos de
+preferencia representan el <b>contenido</b> con transformers ajustados (Ouyang et al., 2022); en la
+propia competencia de Kaggle las soluciones de mejor posición se basaron en el ajuste fino de LLM
+abiertos con adaptadores LoRA. Como esos modelos requieren GPU y días de entrenamiento, el proyecto
+optó por una progresión de modelos clásicos, de lo más simple a lo más rico, que puede ejecutarse en
+una computadora personal (sección 4.3).</p>
+
+<h2>3.5 Métricas de evaluación</h2>
+<ul>
+  <li><b>Log loss multiclase</b> (métrica principal): −(1/N) Σ log p<sub>i,y<sub>i</sub></sub>. Es una
+      regla de puntuación estrictamente propia (Gneiting &amp; Raftery, 2007): premia probabilidades
+      bien calibradas y castiga con fuerza la sobreconfianza. Predecir 1/3 para cada clase da
+      ln(3) ≈ 1.0986.</li>
+  <li><b>Exactitud</b>: proporción de batallas cuya clase más probable coincide con el voto.</li>
+  <li><b>F1 macro</b>: promedio no ponderado del F1 de las tres clases; penaliza ignorar una clase
+      (por ejemplo, no predecir nunca empates).</li>
+  <li><b>Precisión y exhaustividad por clase, matriz de confusión y curva de calibración</b>, para
+      diagnosticar dónde se equivoca cada modelo.</li>
+  <li><b>Tiempo de entrenamiento</b>, como medida del costo computacional.</li>
+</ul>
+
+<!-- ======================= 4. METODOLOGÍA ======================= -->
+<h1><span class="n">4.</span>Metodología</h1>
+
+<h2>4.1 Pasos seguidos</h2>
+<ol>
+  <li><b>Análisis exploratorio</b> (<code>notebooks/ChatbotArena.ipynb</code>): descripción del conjunto,
+      limpieza, derivación de variables y cuantificación de sesgos (sección 5.3).</li>
+  <li><b>Revisión bibliográfica</b> y selección de algoritmos (secciones 3.4 y 4.3).</li>
+  <li><b>Reconstrucción de variables</b> en el cuaderno de modelado
+      (<code>notebooks/Modelado_ChatbotArena.ipynb</code>), incluyendo variables comparativas A–B.</li>
+  <li><b>Partición</b> estratificada en entrenamiento y prueba (sección 4.2).</li>
+  <li><b>Entrenamiento</b> de una línea base y tres modelos; <b>ajuste</b> de hiperparámetros con
+      validación cruzada dentro del entrenamiento.</li>
+  <li><b>Evaluación</b> en el conjunto de prueba y comparación con log loss, exactitud, F1 macro,
+      métricas por clase, calibración y tiempos (sección 5.5).</li>
+  <li><b>Serialización</b> de los modelos (<code>joblib</code>) y construcción de la
+      <b>aplicación</b> en Streamlit (sección 5.6).</li>
+</ol>
+
+<h2>4.2 Conjuntos de entrenamiento y prueba</h2>
+<p>El archivo de prueba de la competencia no incluye etiquetas, así que el conjunto de prueba se tomó
+del propio <code>train.csv</code>. Tras la limpieza (57,470 batallas) se hizo una partición
+<b>estratificada 80/20</b> sobre la variable objetivo con semilla fija (<code>random_state = 42</code>):
+<b>45,976 batallas de entrenamiento y 11,494 de prueba</b>, con la misma proporción de A (34.9%),
+B (34.2%) y empate (30.9%) en ambos conjuntos. La estratificación garantiza que las métricas de prueba
+no se distorsionen por un desbalance accidental. El conjunto de prueba no se usó en ninguna decisión de
+modelado: el ajuste de hiperparámetros y la calibración usaron validación cruzada estratificada de 3
+pliegues <i>dentro</i> del entrenamiento. La aplicación reproduce la misma partición y comprueba que sus
+predicciones coinciden con las del cuaderno (diferencia máxima 2.2 × 10<sup>−16</sup>).</p>
+
+<h2>4.3 Selección de algoritmos</h2>
+<table>
+  <caption>Tabla 2. Modelos construidos y razones de su selección</caption>
+  <tr><th style="width:24%">Modelo</th><th style="width:30%">Entrada</th><th>Por qué se eligió</th></tr>
+  <tr><td>Línea base (a priori)</td><td>Ninguna: predice la distribución de clases del entrenamiento.</td><td>Referencia mínima; cualquier modelo útil debe tener menor log loss.</td></tr>
+  <tr><td>Regresión logística estructural</td><td>18 variables de longitud, formato y turnos, estandarizadas.</td><td>Mide cuánto explican por sí solos los sesgos de superficie del EDA; interpretable y casi instantánea.</td></tr>
+  <tr><td>Regresión logística TF-IDF + estructura</td><td>TF-IDF de 1–2 gramas de A y de B (20,000 rasgos cada uno) + las 18 variables.</td><td>Incorpora el <b>contenido</b> del texto, como recomienda la literatura, con un modelo lineal adecuado para rasgos dispersos; se calibra para optimizar log loss.</td></tr>
+  <tr><td>HistGradientBoosting (con y sin ajuste)</td><td>Las 18 variables estructurales.</td><td>Captura interacciones no lineales (p. ej., longitudes similares y poco formato → empate) que un modelo lineal no ve.</td></tr>
+</table>
+<p>Las variables se construyeron de forma <b>comparativa</b> (diferencias y razones entre A y B), siguiendo
+la lógica de Bradley–Terry y la evidencia de Wang et al. (2024) sobre la sensibilidad a la posición. Se
+descartaron los transformers ajustados por su costo (GPU y horas de entrenamiento por época con ~46 mil
+tripletas largas) y la identidad del modelo, que no está disponible en el escenario de predicción.</p>
+
+<h2>4.4 Herramientas y recursos</h2>
+<h3>Recursos de cómputo</h3>
+<p>Todo el entrenamiento se hizo en <b>CPU</b> en computadoras portátiles personales de los integrantes
+(macOS y Windows 11), sin GPU: los algoritmos elegidos no la requieren. El modelo más costoso (TF-IDF
+con calibración de 3 pliegues) tardó 83.5 s; la búsqueda en rejilla de HistGB (36 ajustes) se
+paralelizó en todos los núcleos con <code>n_jobs = -1</code>.</p>
+<h3>Lenguajes, bibliotecas y paquetes</h3>
+<table>
+  <caption>Tabla 3. Herramientas utilizadas</caption>
+  <tr><th style="width:28%">Herramienta</th><th>Uso</th></tr>
+  <tr><td>Python 3</td><td>Lenguaje de todo el proyecto.</td></tr>
+  <tr><td>pandas, NumPy</td><td>Carga, limpieza y transformación de datos.</td></tr>
+  <tr><td>scikit-learn 1.9</td><td>TF-IDF, regresión logística, HistGradientBoosting, GridSearchCV, calibración y métricas (Pedregosa et al., 2011).</td></tr>
+  <tr><td>matplotlib, seaborn</td><td>Visualizaciones estáticas del informe.</td></tr>
+  <tr><td>joblib, pyarrow</td><td>Serialización de modelos y de los datos procesados (Parquet).</td></tr>
+  <tr><td>Streamlit, Plotly</td><td>Aplicación web y gráficas interactivas.</td></tr>
+  <tr><td>Jupyter, Nix, Git/GitHub</td><td>Cuadernos, entorno reproducible y control de versiones.</td></tr>
+</table>
+
+<!-- ======================= 5. RESULTADOS ======================= -->
+<h1><span class="n">5.</span>Resultados y análisis de resultados</h1>
+
+<h2>5.1 Características del conjunto de datos original</h2>
+<p>El conjunto proviene de la competencia de Kaggle <i>LMSYS – Chatbot Arena Human Preference
+Predictions</i> (archivo <code>train.csv</code>): <b>57,477 batallas y 9 columnas</b>. Cada fila contiene
+un identificador, el nombre de los dos modelos (64 modelos distintos), el prompt y las dos respuestas
+—almacenados como listas JSON con un elemento por turno— y tres indicadores binarios del voto
+(<code>winner_model_a</code>, <code>winner_model_b</code>, <code>winner_tie</code>). No hay variables
+numéricas nativas: toda la información predictiva está en el texto.</p>
+
+<h2>5.2 Limpieza y preprocesamiento</h2>
+<ul>
+  <li><b>Integridad:</b> no hay valores faltantes ni identificadores repetidos. Se eliminaron <b>7 filas
+      duplicadas</b> (mismo contenido y voto, distinto <code>id</code>), quedando 57,470 batallas.</li>
+  <li><b>Objetivo:</b> se verificó que exactamente uno de los tres indicadores vale 1 en cada fila y se
+      combinaron en una variable <code>winner ∈ {A, B, tie}</code>.</li>
+  <li><b>Decodificación:</b> las listas JSON se convirtieron en texto (turnos unidos por salto de línea);
+      las respuestas nulas se trataron como cadena vacía y se contó el número de turnos.</li>
+  <li><b>Variables derivadas (18):</b> <code>n_turns</code>, <code>prompt_len</code>,
+      <code>prompt_words</code>; por respuesta, longitud, palabras y elementos de formato (bloques de
+      código, viñetas, encabezados, negritas → <code>fmt_a</code>, <code>fmt_b</code>); y variables
+      <b>comparativas</b>: <code>len_diff</code>, <code>len_ratio</code> = log((len A+1)/(len B+1)),
+      <code>words_diff</code>, <code>fmt_diff</code>, <code>code_diff</code>, <code>lists_diff</code>,
+      <code>headers_diff</code>, <code>bold_diff</code> y <code>a_is_longer</code>.</li>
+  <li><b>Atípicos:</b> no se eliminaron; las longitudes extremas son respuestas reales. Se usó el
+      logaritmo en <code>len_ratio</code> para amortiguar la asimetría.</li>
+  <li><b>Texto para TF-IDF:</b> 1–2 gramas, frecuencia mínima de 5 documentos, máximo 20,000 rasgos
+      por respuesta y TF sublineal; las variables numéricas se estandarizan.</li>
+</ul>
+<p>En la aplicación, este mismo preprocesamiento se aplica automáticamente a cualquier batalla nueva
+(módulo <code>app/preprocesamiento.py</code>), de modo que pasa inadvertido para el usuario.</p>
+
+<h2>5.3 Análisis exploratorio</h2>
+<p>La variable objetivo está casi balanceada: <span class="A">A</span> gana el 34.9% de las batallas,
+<span class="B">B</span> el 34.2% y el <span class="tie">empate</span> ocurre en el 30.9%. El 86.9% de
+las conversaciones tiene un solo turno (Figura 1). Las longitudes tienen una cola larga a la derecha:
+la mediana de una respuesta es de ~1,040 caracteres, pero hay respuestas de más de 50,000.</p>
+<figure><img src="../../web/public/figs/objetivo-turnos-modelos.png" style="width:100%">
+<figcaption>Figura 1. Distribución del objetivo, número de turnos y los 20 modelos más frecuentes.</figcaption></figure>
+
+<h3>Sesgo de verbosidad</h3>
+<p>El hallazgo central del EDA es que <b>la respuesta más larga suele ganar</b>. Excluyendo empates,
+gana en el 61.5% de las batallas, y esa probabilidad crece con la diferencia: de 49.5% cuando las
+longitudes son casi iguales a 68.7% cuando una respuesta es cinco veces más larga (Figuras 2 y 3). La
+correlación de Spearman entre <code>len_diff</code> y el objetivo (0.241) es la más alta de todas las
+variables.</p>
+<div class="two">
+<figure><img src="../../web/public/figs/longitud-a-vs-b.png"><figcaption>Figura 2. Longitud de A contra longitud de B (log10), por resultado.</figcaption></figure>
+<figure><img src="../../web/public/figs/verbosos-ganan.png"><figcaption>Figura 3. Longitud mediana de cada modelo contra su tasa de victoria.</figcaption></figure>
+</div>
+<figure><img src="../../web/public/figs/verbosidad.png" style="width:92%">
+<figcaption>Figura 4. Probabilidad de que gane la respuesta más larga según la razón de longitud.</figcaption></figure>
+
+<h3>Sesgo de formato, empates y posición</h3>
+<p>La respuesta con más formato markdown gana 45–46% de las veces frente a 26–27% de la otra, aunque el
+efecto está ligado a la longitud. Los empates son más frecuentes cuando las respuestas tienen longitud
+similar y disminuyen en conversaciones largas (Figura 5). El sesgo de posición existe pero es leve: A
+gana el 50.5% de las batallas decididas (prueba binomial, p = 0.038).</p>
+<figure><img src="../../web/public/figs/formato-turnos.png" style="width:92%">
+<figcaption>Figura 5. Resultado según qué respuesta tiene más formato y según el número de turnos.</figcaption></figure>
+
+<h3>Identidad del modelo y correlaciones</h3>
+<p>La tasa de victoria varía de 18.6% (chatglm2-6b) a 76.0% (gpt-4-1106-preview), pero la identidad
+no está disponible al predecir. Las correlaciones de las variables de superficie con el resultado son
+débiles (|ρ| ≤ 0.24; Figura 6), lo que anticipaba que un modelo basado solo en ellas superaría al azar
+por un margen modesto.</p>
+<div class="two">
+<figure><img src="../../web/public/figs/winrate-modelos.png"><figcaption>Figura 6a. Tasa de victoria por modelo (≥300 batallas).</figcaption></figure>
+<figure><img src="../../web/public/figs/correlaciones.png"><figcaption>Figura 6b. Correlaciones de Spearman entre variables y objetivo.</figcaption></figure>
+</div>
+
+<h2>5.4 Ajuste de parámetros</h2>
+<table>
+  <caption>Tabla 4. Hiperparámetros explorados y seleccionados</caption>
+  <tr><th style="width:24%">Modelo</th><th>Búsqueda / decisión</th><th style="width:30%">Valor final</th></tr>
+  <tr><td>LogReg estructural</td><td>Regularización L2 por defecto; las variables se estandarizan para que el castigo sea comparable.</td><td>C = 1.0, max_iter = 2000</td></tr>
+  <tr><td>LogReg TF-IDF + estructura</td><td>Con C = 1 y sin calibrar el modelo quedaba <b>sobreconfiado</b>: buena exactitud, pero log loss peor que la línea base. Se fortaleció la regularización y se añadió calibración sigmoide (Platt) con validación cruzada de 3 pliegues.</td><td>C = 0.3; 1–2 gramas, min_df = 5, 20,000 rasgos por lado; calibración sigmoide, cv = 3</td></tr>
+  <tr><td>HistGradientBoosting</td><td>Configuración inicial manual; luego <code>GridSearchCV</code> sobre 12 combinaciones (learning_rate ∈ {0.05, 0.08, 0.15}, max_iter ∈ {300, 500}, l2 ∈ {0, 1}) con 3 pliegues estratificados, optimizando <code>neg_log_loss</code>.</td><td>learning_rate = 0.05, max_iter = 300, l2_regularization = 1.0 (log loss CV 1.0513); la parada temprana detuvo el modelo en 43 iteraciones</td></tr>
+</table>
+<p>El ajuste de HistGB mejoró la log loss de prueba de 1.0470 a 1.0460, una ganancia pequeña que
+indica que el modelo por defecto ya estaba cerca de su techo con estas variables; la tasa de
+aprendizaje baja con parada temprana redujo el sobreajuste. En el modelo TF-IDF la decisión de mayor
+impacto fue la calibración, que convirtió un modelo con probabilidades extremas en el mejor de todos
+por log loss. La curva de calibración de la Figura 7 muestra que, tras ella, las probabilidades
+predichas siguen de cerca la diagonal.</p>
+<div class="two">
+<figure><img src="../../notebooks/resultados_modelado/calibracion.png"><figcaption>Figura 7. Curva de calibración del mejor modelo (TF-IDF calibrado).</figcaption></figure>
+<figure><img src="../../notebooks/resultados_modelado/importancia_variables.png"><figcaption>Figura 8. Importancia de las variables (|coeficiente| medio, LogReg estructural).</figcaption></figure>
+</div>
+
+<h2>5.5 Comparación de los algoritmos</h2>
+<table>
+  <caption>Tabla 5. Resultados en el conjunto de prueba (n = 11,494), ordenados por log loss</caption>
+  <tr><th>Modelo</th><th class="num">Log loss</th><th class="num">Exactitud</th><th class="num">F1 macro</th><th class="num">Recall empate</th><th class="num">Entrenamiento</th></tr>
+  <tr class="best"><td>LogReg TF-IDF + estructura</td><td class="num">1.0414</td><td class="num">47.3%</td><td class="num">0.455</td><td class="num">0.25</td><td class="num">83.5 s</td></tr>
+  <tr><td>HistGB (ajustado)</td><td class="num">1.0460</td><td class="num">45.7%</td><td class="num">0.451</td><td class="num">0.34</td><td class="num">6.2 s</td></tr>
+  <tr><td>HistGradientBoosting (sin ajustar)</td><td class="num">1.0470</td><td class="num">45.6%</td><td class="num">0.450</td><td class="num">—</td><td class="num">0.6 s</td></tr>
+  <tr><td>LogReg estructural</td><td class="num">1.0654</td><td class="num">43.4%</td><td class="num">0.365</td><td class="num">0.05</td><td class="num">0.1 s</td></tr>
+  <tr><td>Línea base (a priori)</td><td class="num">1.0972</td><td class="num">34.9%</td><td class="num">0.173</td><td class="num">0.00</td><td class="num">0.0 s</td></tr>
+</table>
+<figure><img src="../../notebooks/resultados_modelado/comparacion_efectividad_tiempo.png">
+<figcaption>Figura 9. Efectividad (log loss, exactitud, F1 macro) contra tiempo de entrenamiento.</figcaption></figure>
+
+<h3>Efectividad</h3>
+<p>Los cuatro modelos superan a la línea base. El mejor es la regresión logística con TF-IDF:
+reduce la log loss de 1.0972 a <b>1.0414 (−5.1%)</b> y eleva la exactitud de 34.9% a <b>47.3%</b>. La
+diferencia con HistGB ajustado es pequeña (0.0046), lo que indica que la mayor parte de la señal
+aprovechable está en las variables estructurales y que una bolsa de palabras añade poco contenido
+semántico. La regresión logística estructural queda claramente atrás en F1 macro (0.365) porque casi
+nunca predice empates.</p>
+
+<h3>Errores: el empate es la clase difícil</h3>
+<p>Las matrices de confusión (Figura 10) muestran el mismo patrón en todos los modelos: A y B se
+reconocen en 50–61% de los casos, pero el empate se confunde con una victoria. La exhaustividad del
+empate es 0.05 en la LogReg estructural, 0.25 en la TF-IDF y 0.34 en HistGB (Figura 11): el modelo de
+árboles es el que mejor detecta empates porque modela combinaciones como “longitudes parecidas y poco
+formato”. Esto es coherente con el EDA: ninguna variable aislada distingue al empate.</p>
+<figure><img src="../../notebooks/resultados_modelado/matrices_confusion_modelos.png">
+<figcaption>Figura 10. Matrices de confusión de los tres modelos (porcentaje por clase real).</figcaption></figure>
+<div class="two">
+<figure><img src="../../notebooks/resultados_modelado/exhaustividad_por_clase.png"><figcaption>Figura 11. Exhaustividad por clase.</figcaption></figure>
+<figure><img src="../../notebooks/resultados_modelado/comparacion_logloss.png"><figcaption>Figura 12. Log loss por modelo contra el azar, ln(3).</figcaption></figure>
+</div>
+
+<h3>Los modelos heredan el sesgo de verbosidad</h3>
+<p>La Figura 13 divide el conjunto de prueba según la longitud relativa de las respuestas. Todos los
+modelos aciertan más cuando una respuesta es mucho más larga (TF-IDF: 54% de exactitud, log loss 0.99)
+y menos cuando son similares (42%, log loss 1.075). Es decir, los modelos aprendieron el mismo sesgo
+que tienen los votantes: la longitud es su señal principal, como confirman los coeficientes de la
+Figura 8, donde <code>len_diff</code>, <code>len_ratio</code>, <code>len_a</code> y
+<code>a_is_longer</code> son las variables de mayor peso.</p>
+<figure><img src="../../notebooks/resultados_modelado/rendimiento_por_longitud.png">
+<figcaption>Figura 13. Exactitud y log loss según la longitud relativa de las respuestas.</figcaption></figure>
+
+<h3>Tiempo de procesamiento</h3>
+<p>El costo crece casi dos órdenes de magnitud del modelo más simple al más complejo: 0.1 s para la
+LogReg estructural, 6.2 s para HistGB ajustado (más la búsqueda en rejilla) y 83.5 s para el TF-IDF
+calibrado, cuyo archivo además pesa 7.5 MB frente a 0.5 MB de HistGB. En predicción los tres responden
+en milisegundos para una batalla.</p>
+
+<h3>Selección del modelo</h3>
+<p>Se eligió la <b>regresión logística TF-IDF + estructura</b> como modelo principal por tener la menor
+log loss (la métrica de la competencia) y probabilidades bien calibradas. <b>HistGB ajustado</b> queda
+como alternativa recomendada cuando importa el costo o la detección de empates: es 13 veces más rápido
+de entrenar y solo 0.0046 peor en log loss. La aplicación ofrece los tres modelos y su consenso
+(promedio de probabilidades) para que el usuario los compare.</p>
+
+<h2>5.6 La aplicación</h2>
+<p>Se construyó una aplicación web con <b>Streamlit</b> y <b>Plotly</b> (carpeta <code>app/</code> del
+repositorio; se ejecuta con <code>streamlit run app.py</code>). Se eligieron estas tecnologías porque
+permiten reutilizar directamente en Python el preprocesamiento y los modelos de scikit-learn
+serializados, sin reimplementar nada en otro lenguaje; Streamlit resuelve la interfaz y el estado con
+poco código, y Plotly ofrece gráficas interactivas (zoom, filtros por leyenda, información al pasar el
+cursor). Los datos procesados se guardan en formato Parquet para cargarse en menos de un segundo.</p>
+<p>La aplicación tiene una barra lateral para <b>elegir uno, varios o todos los modelos</b> y un
+interruptor para <b>mostrar u ocultar el rendimiento</b>, y cuatro pestañas:</p>
+<ul>
+  <li><b>La historia:</b> cuenta los hallazgos del EDA con gráficas interactivas (sesgo de verbosidad,
+      sesgo de formato, empates, tasa de victoria por chatbot) y los conecta con lo que aprendieron los
+      modelos mediante sus coeficientes (Figura 14).</li>
+  <li><b>Explorar datos:</b> permite elegir cualquiera de las 18 variables del modelo y ver su
+      distribución y diagrama de caja por resultado, filtrar por partición y resultado, graficar dos
+      variables entre sí, ver correlaciones y consultar la tabla (Figura 15).</li>
+  <li><b>Predecir:</b> el usuario escribe un prompt y dos respuestas, o carga una batalla real del
+      conjunto de prueba. La aplicación calcula las variables de forma invisible y muestra la
+      predicción de cada modelo seleccionado, su confianza, su log loss de prueba y el consenso; para
+      ejemplos reales indica el voto humano y qué modelos acertaron (Figura 16).</li>
+  <li><b>Rendimiento:</b> comparación interactiva por métrica, detalle por clase, matriz de confusión y
+      curva de calibración por modelo, exactitud según longitud relativa y distribución de la
+      confianza, todo sobre el conjunto de prueba (Figura 17). Se puede ocultar desde la barra lateral
+      (Figura 18).</li>
+</ul>
+<p><b>Diseño y color.</b> Se aplicó un esquema <b>complementario</b> para los rivales: azul para
+<span class="A">A</span> y naranja para <span class="B">B</span>, opuestos en el círculo cromático y
+distinguibles con las formas más comunes de daltonismo; el <span class="tie">empate</span> usa un gris
+neutro que no compite con ninguno. Los modelos usan una gama <b>análoga</b> de tonos fríos (violeta,
+verde azulado, azul pizarra) para no confundirse con A y B, y la línea base un gris claro. El fondo es
+blanco con un tono azul grisáceo para la barra lateral, lo que mantiene el contraste del texto.</p>
+<figure class="shot"><img src="../capturas_app/app_1_historia.png">
+<figcaption>Figura 14. Pestaña “La historia”: hallazgos del EDA y coeficientes del modelo.</figcaption></figure>
+<figure class="shot"><img src="../capturas_app/app_2_datos.png">
+<figcaption>Figura 15. Pestaña “Explorar datos”: distribución por resultado, dispersión y correlaciones.</figcaption></figure>
+<figure class="shot"><img src="../capturas_app/app_3_predecir.png">
+<figcaption>Figura 16. Pestaña “Predecir” con una batalla real: los tres modelos y el consenso aciertan que gana B.</figcaption></figure>
+<figure class="shot"><img src="../capturas_app/app_4_rendimiento.png">
+<figcaption>Figura 17. Pestaña “Rendimiento”: métricas, detalle por clase, matriz de confusión, calibración y sesgo de longitud.</figcaption></figure>
+<figure class="shot"><img src="../capturas_app/app_5_oculto.png">
+<figcaption>Figura 18. Rendimiento oculto mediante el interruptor de la barra lateral.</figcaption></figure>
+
+<!-- ======================= 6. CONCLUSIONES ======================= -->
+<h1><span class="n">6.</span>Conclusiones</h1>
+<ol>
+  <li><b>Revisión bibliográfica y selección de algoritmos (objetivo 1).</b> La literatura sobre Chatbot
+      Arena, LLM como jueces y modelos de recompensa señaló dos fuentes de información: los sesgos de
+      superficie del votante y el contenido del texto. Con base en ello se eligió una progresión de
+      algoritmos —regresión logística sobre variables estructurales, regresión logística con TF-IDF y
+      gradient boosting— viable sin GPU, y se dejó documentado el enfoque de mayor rendimiento
+      (transformers ajustados) como siguiente paso.</li>
+  <li><b>Limpieza y variables (objetivo 2).</b> Se limpió el conjunto (57,470 batallas tras eliminar 7
+      duplicados) y se derivaron 18 variables, incluidas las comparativas A–B. Los modelos confirmaron
+      que capturan señal real: la longitud relativa es la variable de mayor peso, en línea con el sesgo
+      de verbosidad documentado por Zheng et al. (2023) y medido en el EDA.</li>
+  <li><b>Modelos y comparación (objetivo 3).</b> Se entrenaron cuatro modelos más una línea base,
+      con ajuste de hiperparámetros y calibración. Todos superan al azar; el mejor (LogReg TF-IDF +
+      estructura) obtiene una log loss de <b>1.0414</b> y una exactitud de <b>47.3%</b> frente a 1.0972
+      y 34.9% de la línea base. HistGB ajustado logra casi lo mismo (1.0460) en 13 veces menos tiempo y
+      reconoce mejor los empates.</li>
+  <li><b>Aplicación (objetivo 4).</b> Se construyó una aplicación en Streamlit que preprocesa entradas
+      nuevas de forma automática, permite usar uno o todos los modelos, cuenta la historia de los datos
+      y muestra el rendimiento con gráficas interactivas que el usuario puede ocultar.</li>
+  <li><b>Efectividad de los algoritmos.</b> La mejora sobre el azar es real pero modesta: con rasgos de
+      superficie y bolsa de palabras los modelos aprenden sobre todo <i>cuál respuesta es más larga</i>,
+      no <i>cuál es mejor</i>. Aciertan 54% cuando una respuesta es mucho más larga y 42% cuando las
+      longitudes son similares, y el empate sigue siendo la clase más difícil. Para modelar la calidad
+      del contenido —y no solo heredar el sesgo del votante— el siguiente paso es ajustar un transformer
+      sobre la tripleta (prompt, A, B), promediar predicciones con A y B intercambiadas para neutralizar
+      la posición y validar agrupando por prompt para evitar fugas de información.</li>
+</ol>
+
+<!-- ======================= 7. REFERENCIAS ======================= -->
+<h1><span class="n">7.</span>Referencias</h1>
+<div class="refs">
+<p>Bradley, R. A., &amp; Terry, M. E. (1952). Rank analysis of incomplete block designs: I. The method of paired comparisons. <i>Biometrika, 39</i>(3/4), 324–345. https://doi.org/10.2307/2334029</p>
+<p>Chen, T., &amp; Guestrin, C. (2016). XGBoost: A scalable tree boosting system. En <i>Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining</i> (pp. 785–794). ACM. https://doi.org/10.1145/2939672.2939785</p>
+<p>Chiang, W.-L., Zheng, L., Sheng, Y., Angelopoulos, A. N., Li, T., Li, D., Zhang, H., Zhu, B., Jordan, M., Gonzalez, J. E., &amp; Stoica, I. (2024). Chatbot Arena: An open platform for evaluating LLMs by human preference. En <i>Proceedings of the 41st International Conference on Machine Learning</i> (Vol. 235). PMLR.</p>
+<p>Christiano, P. F., Leike, J., Brown, T., Martic, M., Legg, S., &amp; Amodei, D. (2017). Deep reinforcement learning from human preferences. En <i>Advances in Neural Information Processing Systems</i> (Vol. 30). Curran Associates.</p>
+<p>Devlin, J., Chang, M.-W., Lee, K., &amp; Toutanova, K. (2019). BERT: Pre-training of deep bidirectional transformers for language understanding. En <i>Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics</i> (pp. 4171–4186). ACL. https://doi.org/10.18653/v1/N19-1423</p>
+<p>Friedman, J. H. (2001). Greedy function approximation: A gradient boosting machine. <i>The Annals of Statistics, 29</i>(5), 1189–1232. https://doi.org/10.1214/aos/1013203451</p>
+<p>Gneiting, T., &amp; Raftery, A. E. (2007). Strictly proper scoring rules, prediction, and estimation. <i>Journal of the American Statistical Association, 102</i>(477), 359–378. https://doi.org/10.1198/016214506000001437</p>
+<p>Hastie, T., Tibshirani, R., &amp; Friedman, J. (2009). <i>The elements of statistical learning: Data mining, inference, and prediction</i> (2.ª ed.). Springer. https://doi.org/10.1007/978-0-387-84858-7</p>
+<p>He, P., Liu, X., Gao, J., &amp; Chen, W. (2021). DeBERTa: Decoding-enhanced BERT with disentangled attention. En <i>International Conference on Learning Representations</i>.</p>
+<p>Hu, E. J., Shen, Y., Wallis, P., Allen-Zhu, Z., Li, Y., Wang, S., Wang, L., &amp; Chen, W. (2022). LoRA: Low-rank adaptation of large language models. En <i>International Conference on Learning Representations</i>.</p>
+<p>Jurafsky, D., &amp; Martin, J. H. (2024). <i>Speech and language processing</i> (3.ª ed., borrador). Stanford University. https://web.stanford.edu/~jurafsky/slp3/</p>
+<p>Kaggle. (2024). <i>LMSYS – Chatbot Arena human preference predictions</i> [Conjunto de datos y competencia]. https://www.kaggle.com/competitions/lmsys-chatbot-arena</p>
+<p>Ke, G., Meng, Q., Finley, T., Wang, T., Chen, W., Ma, W., Ye, Q., &amp; Liu, T.-Y. (2017). LightGBM: A highly efficient gradient boosting decision tree. En <i>Advances in Neural Information Processing Systems</i> (Vol. 30). Curran Associates.</p>
+<p>Manning, C. D., Raghavan, P., &amp; Schütze, H. (2008). <i>Introduction to information retrieval</i>. Cambridge University Press. https://doi.org/10.1017/CBO9780511809071</p>
+<p>Niculescu-Mizil, A., &amp; Caruana, R. (2005). Predicting good probabilities with supervised learning. En <i>Proceedings of the 22nd International Conference on Machine Learning</i> (pp. 625–632). ACM. https://doi.org/10.1145/1102351.1102430</p>
+<p>Ouyang, L., Wu, J., Jiang, X., Almeida, D., Wainwright, C., Mishkin, P., Zhang, C., Agarwal, S., Slama, K., Ray, A., Schulman, J., Hilton, J., Kelton, F., Miller, L., Simens, M., Askell, A., Welinder, P., Christiano, P. F., Leike, J., &amp; Lowe, R. (2022). Training language models to follow instructions with human feedback. En <i>Advances in Neural Information Processing Systems</i> (Vol. 35, pp. 27730–27744). Curran Associates.</p>
+<p>Pedregosa, F., Varoquaux, G., Gramfort, A., Michel, V., Thirion, B., Grisel, O., Blondel, M., Prettenhofer, P., Weiss, R., Dubourg, V., Vanderplas, J., Passos, A., Cournapeau, D., Brucher, M., Perrot, M., &amp; Duchesnay, É. (2011). Scikit-learn: Machine learning in Python. <i>Journal of Machine Learning Research, 12</i>, 2825–2830.</p>
+<p>Platt, J. C. (1999). Probabilistic outputs for support vector machines and comparisons to regularized likelihood methods. En A. J. Smola, P. Bartlett, B. Schölkopf, &amp; D. Schuurmans (Eds.), <i>Advances in large margin classifiers</i> (pp. 61–74). MIT Press.</p>
+<p>Salton, G., &amp; Buckley, C. (1988). Term-weighting approaches in automatic text retrieval. <i>Information Processing &amp; Management, 24</i>(5), 513–523. https://doi.org/10.1016/0306-4573(88)90021-0</p>
+<p>Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., Kaiser, Ł., &amp; Polosukhin, I. (2017). Attention is all you need. En <i>Advances in Neural Information Processing Systems</i> (Vol. 30). Curran Associates.</p>
+<p>Wang, P., Li, L., Chen, L., Cai, Z., Zhu, D., Lin, B., Cao, Y., Kong, L., Liu, Q., Liu, T., &amp; Sui, Z. (2024). Large language models are not fair evaluators. En <i>Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)</i>. ACL.</p>
+<p>Zheng, L., Chiang, W.-L., Sheng, Y., Zhuang, S., Wu, Z., Zhuang, Y., Lin, Z., Li, Z., Li, D., Xing, E. P., Zhang, H., Gonzalez, J. E., &amp; Stoica, I. (2023). Judging LLM-as-a-judge with MT-Bench and Chatbot Arena. En <i>Advances in Neural Information Processing Systems</i> (Vol. 36). Curran Associates.</p>
+</div>
+
+</body>
+</html>

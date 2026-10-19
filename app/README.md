@@ -22,11 +22,12 @@ cd app
 python -m venv .venv && .venv/Scripts/activate      # en Linux/Mac: source .venv/bin/activate
 pip install -r requirements.txt
 
-# Una sola vez: genera app/datos/ a partir del train.csv de Kaggle
-# (LMSYS – Chatbot Arena Human Preference Predictions)
-python preparar_datos.py ruta/a/train.csv
-
 streamlit run app.py
+```
+
+`app/datos/` ya viene en el repositorio. Solo hace falta regenerarlo si cambian los modelos:
+```bash
+python preparar_datos.py ../data/train.csv
 ```
 
 `preparar_datos.py` repite la limpieza y la partición 80/20 del cuaderno (semilla 42) y

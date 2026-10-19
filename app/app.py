@@ -531,9 +531,10 @@ with tab_rendimiento:
             if met == 'exactitud':
                 fig.update_layout(yaxis_tickformat='.0%')
             st.plotly_chart(estilo(fig, 420))
-            st.markdown('Los modelos aciertan mucho más cuando una respuesta es claramente más larga '
-                        'que la otra, y se acercan al azar cuando las longitudes son similares: '
-                        'reproducen el sesgo de verbosidad del voto humano.')
+            st.markdown('Los modelos aciertan más cuando una respuesta es claramente más larga que la '
+                        'otra y su rendimiento cae cuando las longitudes son similares: reproducen el '
+                        'sesgo de verbosidad del voto humano. La línea base, que siempre dice “A”, solo '
+                        'acierta cuando A es la más larga.')
 
             st.subheader('¿Qué tan seguros están?')
             conf = pd.concat([pd.DataFrame({'modelo': n, 'confianza': P[n].max(1)}) for n in seleccion])
@@ -543,5 +544,5 @@ with tab_rendimiento:
             fig.add_vline(1 / 3, line_dash='dot', line_color='#888', annotation_text='1/3')
             fig.update_yaxes(title='% de batallas')
             st.plotly_chart(estilo(fig, 360))
-            st.caption('Casi todas las predicciones están entre 35% y 60%: los modelos son prudentes, '
+            st.caption('Casi todas las predicciones están entre 35% y 65%: los modelos son prudentes, '
                        'lo cual es correcto dado lo débiles que son las señales.')
