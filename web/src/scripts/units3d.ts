@@ -1,12 +1,18 @@
 // Unidades 3D chibi low-poly (estilo PS1 / Mega Man Legends) con ojos saltones.
 //
 // Cada [data-unit] trae un <canvas>. Para no abrir un contexto WebGL por
-// unidad, hay un solo renderer fuera de pantalla: cada cuadro se renderiza la
-// unidad en una esquina del renderer y se copia a su canvas con drawImage.
-// Solo se dibujan las unidades visibles, cada una se arma la primera vez que
-// aparece en pantalla y las piezas rígidas de cada hueso se funden en una sola
-// malla (pocas llamadas de dibujo por unidad). Se anima a 30 cuadros por
-// segundo, que además va con el estilo PS1.
+// unidad, hay un solo renderer fuera de pantalla: cada cuadro se renderizan
+// todas las unidades visibles en su propio rectángulo del renderer (un atlas)
+// y luego se copian a sus canvas con drawImage. Para que corra hasta en una
+// tostadora: sin antialias y a un pixel por pixel CSS (los serruchos y los
+// pixeles gordos van con el estilo PS1), los cuadros por segundo bajan solos
+// si la máquina no da, y como mucho se arma un modelo nuevo por cuadro para
+// que el scroll no se trabe. Solo se dibujan las
+// unidades visibles (sin ninguna en pantalla el ciclo se detiene), cada
+// variante (equipo, sombrero, arma, cara) se arma una sola vez y las demás
+// unidades iguales la clonan compartiendo geometría, y las piezas rígidas de
+// cada hueso se funden en una sola malla (pocas llamadas de dibujo por
+// unidad). Se anima a 30 cuadros por segundo, que además va con el estilo PS1.
 //
 // Esqueleto: pelvis → (piernas: muslo → rodilla → espinilla) y
 // columna → (brazos: brazo → codo → antebrazo → mano) y cuello → cabeza.
@@ -243,10 +249,13 @@ interface Model {
 const HIP_Y = 0.6;
 const SPINE_Y = 0.05;
 
-function build(o: Opts): Model {
+// Arma el modelo de referencia de una variante. Los huesos llevan nombre para
+// encontrarlos en cada clon.
+function build(o: Opts): Group {
   const c = TEAMS[o.team];
   const base = new Group();
   const root = new Group();
+  root.name = "root";
   root.rotation.order = "YXZ";
   base.add(root);
 
@@ -257,23 +266,26 @@ function build(o: Opts): Model {
 
   // cadera: la parte baja de la panza, con el color del pantalón
   const pelvis = group(0, HIP_Y, 0);
+  pelvis.name = "pelvis";
   root.add(pelvis);
   pelvis.add(ellipsoid(0.46, 0.3, 0.42, c.dark, 0, 0.06, 0));
 
   // piernitas gorditas con pies redondos
-  const legs = [-1, 1].map((s): Limb => {
+  [-1, 1].forEach((s) => {
     const upper = group(s * 0.2, -0.04, 0);
+    upper.name = s < 0 ? "legL" : "legR";
     upper.add(taper(0.17, 0.15, 0.22, c.dark));
     const lower = group(0, -0.22, 0);
     lower.add(taper(0.15, 0.13, 0.18, c.dark));
     lower.add(ellipsoid(0.14, 0.085, 0.2, "#2b2833", 0, -0.27, 0.06));
+    lower.name = upper.name + ".lower";
     upper.add(lower);
     pelvis.add(upper);
-    return { upper, lower };
   });
 
   // panza redonda
   const spine = group(0, SPINE_Y, 0);
+  spine.name = "spine";
   spine.rotation.order = "YXZ";
   pelvis.add(spine);
   spine.add(ellipsoid(0.52, 0.56, 0.48, c.base, 0, 0.38, 0));
@@ -300,11 +312,13 @@ function build(o: Opts): Model {
   // bracitos cortos y gordos con manitas redondas
   const arms = [-1, 1].map((s): Limb => {
     const upper = group(s * 0.46, 0.62, 0);
+    upper.name = s < 0 ? "armL" : "armR";
     upper.add(ellipsoid(0.15, 0.15, 0.15, c.base));
     upper.add(taper(0.13, 0.12, 0.2, c.base));
     const lower = group(0, -0.2, 0);
     lower.add(taper(0.12, 0.11, 0.15, c.base));
     lower.add(ellipsoid(0.12, 0.12, 0.11, c.light, 0, -0.28, 0));
+    lower.name = upper.name + ".lower";
     upper.add(lower);
     spine.add(upper);
     return { upper, lower };
@@ -316,8 +330,10 @@ function build(o: Opts): Model {
 
   // sin cuello: la cabezota va directo sobre la panza
   const neck = group(0, 0.85, 0);
+  neck.name = "neck";
   spine.add(neck);
   const head = group(0, 0.38, 0.02);
+  head.name = "head";
   head.rotation.order = "YXZ";
   head.add(new Mesh(eggHead(), mat(c.base)));
   const wow = o.mood === "wow";
@@ -334,6 +350,8 @@ function build(o: Opts): Model {
     eye.add(white);
     const pupil = new Mesh(new SphereGeometry(r * (wow ? 0.36 : 0.48), 6, 4), pupilMat);
     pupil.position.set(0, 0, r * 0.62);
+    pupil.name = "pupil";
+    pupil.userData.r = r;
     eye.add(pupil);
     head.add(eye);
     if (o.mood === "angry" || o.mood === "sad") {
@@ -342,7 +360,7 @@ function build(o: Opts): Model {
       brow.rotation.z = (o.mood === "angry" ? 0.4 : -0.4) * Math.sign(x);
       head.add(brow);
     }
-    return { mesh: pupil, r };
+    return pupil;
   });
   // los sombreros se diseñaron para una esfera de radio ~0.37
   const hat = new Group();
@@ -357,9 +375,47 @@ function build(o: Opts): Model {
     if (obj.userData.poly === "eye") polyfy(obj, 0, 0.02);
     else polyfy(obj, 0.004, 0.04);
   });
-  bake(root, new Set(pupils.map((p) => p.mesh)));
+  bake(root, new Set(pupils));
+  // siempre están en cuadro y casi nada se mueve fuera de los huesos: sin
+  // frustum culling ni recalcular matrices locales de las mallas fijas
+  base.traverse((obj) => {
+    obj.frustumCulled = false;
+    if (obj instanceof Mesh && obj.name !== "pupil") {
+      obj.updateMatrix();
+      obj.matrixAutoUpdate = false;
+    }
+  });
+  return base;
+}
 
-  return { base, root, pelvis, spine, neck, head, armL: arms[0], armR: arms[1], legL: legs[0], legR: legs[1], pupils };
+// Las unidades iguales comparten geometría y materiales: solo se clonan los
+// nodos, que cada una anima por su cuenta.
+const templates = new Map<string, Group>();
+const variant = (o: Opts) => `${o.team}|${o.hat}|${o.weapon}|${o.mood}`;
+function instance(o: Opts): Model {
+  const key = variant(o);
+  let tpl = templates.get(key);
+  if (!tpl) templates.set(key, (tpl = build(o)));
+  const base = tpl.clone();
+  const bone = (name: string) => base.getObjectByName(name) as Group;
+  const limb = (name: string): Limb => ({ upper: bone(name), lower: bone(name + ".lower") });
+  const pupils: Model["pupils"] = [];
+  base.traverse((obj) => {
+    if (obj instanceof Mesh && obj.name === "pupil") pupils.push({ mesh: obj, r: obj.userData.r });
+  });
+  return {
+    base,
+    root: bone("root"),
+    pelvis: bone("pelvis"),
+    spine: bone("spine"),
+    neck: bone("neck"),
+    head: bone("head"),
+    armL: limb("armL"),
+    armR: limb("armR"),
+    legL: limb("legL"),
+    legR: limb("legR"),
+    pupils,
+  };
 }
 
 // Sombreros: siempre por encima de la línea de los ojos
@@ -626,7 +682,8 @@ function pose(u: Unit, m: Model, now: number) {
 }
 
 // ---------- arranque ----------
-const FRAME_MS = 1000 / 30;
+// cuadros por segundo según lo que aguante la máquina
+const FPS_STEPS = [30, 20, 15, 10];
 
 function init() {
   const els = [...document.querySelectorAll<HTMLElement>("[data-unit]")];
@@ -634,13 +691,14 @@ function init() {
 
   let renderer: WebGLRenderer;
   try {
-    renderer = new WebGLRenderer({ antialias: true, alpha: true, powerPreference: "low-power" });
+    renderer = new WebGLRenderer({ antialias: false, alpha: true, stencil: false, powerPreference: "low-power" });
   } catch {
     return; // sin WebGL: las unidades simplemente no aparecen
   }
   renderer.setPixelRatio(1);
   renderer.setClearColor(0x000000, 0);
   renderer.setScissorTest(true);
+  renderer.sortObjects = false; // la única transparente (la sombra) igual va al final
 
   const scene = new Scene();
   scene.add(new HemisphereLight("#ffffff", "#8a7d6e", 1.7));
@@ -657,7 +715,7 @@ function init() {
   camera.lookAt(0, 1.25, 0);
 
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const dpr = Math.min(devicePixelRatio || 1, 2);
+  const dpr = 1;
   const start = performance.now();
 
   const units: Unit[] = els.map((el, i) => {
@@ -693,11 +751,7 @@ function init() {
   const byEl = new Map(units.map((u) => [u.el, u]));
 
   // Tamaños: el canvas usa el tamaño de layout (ignora transforms y volteos)
-  let maxW = 1;
-  let maxH = 1;
   const measure = () => {
-    maxW = 1;
-    maxH = 1;
     for (const u of units) {
       const w = Math.max(1, Math.round(u.el.clientWidth * dpr));
       const h = Math.max(1, Math.round(u.el.clientHeight * dpr));
@@ -707,10 +761,7 @@ function init() {
         u.h = u.canvas.height = h;
       }
       u.flipped = getComputedStyle(u.el).scale.trim().startsWith("-");
-      maxW = Math.max(maxW, u.w);
-      maxH = Math.max(maxH, u.h);
     }
-    renderer.setSize(maxW, maxH, false);
   };
   // se vuelve a medir cuando cambia el tamaño de alguna (ventana, o una
   // unidad que estaba oculta y aparece)
@@ -722,18 +773,56 @@ function init() {
   units.forEach((u) => ro.observe(u.el));
   measure();
 
-  const draw = (u: Unit, now: number) => {
-    if (!u.model) u.model = build(u.opts);
-    pose(u, u.model, now);
-    scene.add(u.model.base);
-    renderer.setViewport(0, 0, u.w, u.h);
-    renderer.setScissor(0, 0, u.w, u.h);
-    renderer.clear();
-    renderer.render(scene, camera);
-    scene.remove(u.model.base);
-    u.ctx.clearRect(0, 0, u.w, u.h);
-    // el viewport de WebGL empieza abajo a la izquierda
-    u.ctx.drawImage(renderer.domElement, 0, maxH - u.h, u.w, u.h, 0, 0, u.w, u.h);
+  // Atlas: las unidades se acomodan en filas dentro del renderer. El buffer
+  // solo crece (cambiarle el tamaño cada cuadro sería caro).
+  const ATLAS_W = Math.min(2048, renderer.capabilities.maxTextureSize);
+  let bufW = 1;
+  let bufH = 1;
+  const slots: { u: Unit; x: number; y: number }[] = [];
+  // devuelve cuántas variantes nuevas armó
+  const draw = (list: Unit[], now: number) => {
+    slots.length = 0;
+    let x = 0;
+    let y = 0;
+    let row = 0;
+    let w = 1;
+    let builds = 0;
+    for (const u of list) {
+      if (!u.model) {
+        // armar una variante nueva es lo caro: una por cuadro
+        if (!templates.has(variant(u.opts)) && builds++) continue;
+        u.model = instance(u.opts);
+      }
+      if (x > 0 && x + u.w > ATLAS_W) {
+        x = 0;
+        y += row;
+        row = 0;
+      }
+      slots.push({ u, x, y });
+      x += u.w;
+      row = Math.max(row, u.h);
+      w = Math.max(w, x);
+    }
+    const h = Math.max(1, y + row);
+    if (w > bufW || h > bufH) {
+      bufW = Math.max(bufW, w);
+      bufH = Math.max(bufH, h);
+      renderer.setSize(bufW, bufH, false);
+    }
+    for (const { u, x, y } of slots) {
+      pose(u, u.model!, now);
+      scene.add(u.model!.base);
+      // el viewport de WebGL empieza abajo a la izquierda
+      renderer.setViewport(x, bufH - y - u.h, u.w, u.h);
+      renderer.setScissor(x, bufH - y - u.h, u.w, u.h);
+      renderer.render(scene, camera); // autoClear limpia solo el scissor
+      scene.remove(u.model!.base);
+    }
+    for (const { u, x, y } of slots) {
+      u.ctx.clearRect(0, 0, u.w, u.h);
+      u.ctx.drawImage(renderer.domElement, x, y, u.w, u.h, 0, 0, u.w, u.h);
+    }
+    return builds;
   };
 
   // Solo se dibujan las que están en pantalla (y se arman al aparecer)
@@ -742,8 +831,9 @@ function init() {
       for (const e of entries) {
         const u = byEl.get(e.target as HTMLElement)!;
         u.visible = e.isIntersecting;
-        if (u.visible && reduced) draw(u, 0);
+        if (u.visible && reduced) draw([u], 0);
       }
+      wake();
     },
     { rootMargin: "120px 0px" },
   );
@@ -758,7 +848,7 @@ function init() {
     u.el.addEventListener("click", () => {
       if (!u.ragdoll) u.ragdoll = performance.now();
       u.action = null;
-      if (reduced) draw(u, 0);
+      if (reduced) draw([u], 0);
     });
   }
   // solo se guarda la posición; la mirada se calcula una vez por cuadro
@@ -785,12 +875,25 @@ function init() {
     pointer = null;
   };
 
-  if (reduced) return;
-
+  // El ciclo solo corre mientras haya alguna unidad en pantalla
   let last = 0;
-  const loop = (now: number) => {
-    requestAnimationFrame(loop);
-    if (now - last < FRAME_MS - 2) return;
+  let raf = 0;
+  let level = 0;
+  let cost = 0;
+  let changed = 0;
+  const visible: Unit[] = [];
+  function wake() {
+    if (!reduced && !raf && units.some((u) => u.visible)) raf = requestAnimationFrame(loop);
+  }
+  function loop(now: number) {
+    visible.length = 0;
+    for (const u of units) if (u.visible) visible.push(u);
+    if (!visible.length) {
+      raf = 0;
+      return;
+    }
+    raf = requestAnimationFrame(loop);
+    if (now - last < 1000 / FPS_STEPS[level] - 2) return;
     last = now;
     aim();
     // sin cursor un rato: miran de un lado a otro solos
@@ -800,9 +903,22 @@ function init() {
         u.look.ty = Math.sin(now / 1700 + u.phase * 2) * 0.25;
       }
     }
-    for (const u of units) if (u.visible) draw(u, now);
-  };
-  requestAnimationFrame(loop);
+    const t0 = performance.now();
+    // los cuadros donde se armó un modelo no cuentan para medir
+    if (!draw(visible, now)) adapt(performance.now() - t0, now);
+  }
+
+  // Si dibujar se come mucho del cuadro se baja de fps, y si sobra se sube.
+  // Se mide con promedio móvil y se espera un rato entre cambios.
+  function adapt(ms: number, now: number) {
+    cost = cost ? cost * 0.9 + ms * 0.1 : ms;
+    if (now - changed < 2000) return;
+    const budget = 1000 / FPS_STEPS[level];
+    if (cost > budget * 0.35 && level < FPS_STEPS.length - 1) level++;
+    else if (cost < budget * 0.1 && level > 0) level--;
+    else return;
+    changed = now;
+  }
 }
 
 init();
