@@ -8,6 +8,8 @@ interface Props {
   weapon?: "none" | "sword" | "club" | "scroll" | "flag";
   mood?: "happy" | "sad" | "wow" | "angry";
   idle?: "wobble" | "walk" | "pull";
+  // con su propio WebGL y a la frecuencia de la pantalla (para las del hero)
+  solo?: boolean;
   class?: string;
 }
 
@@ -18,6 +20,7 @@ const {
   weapon = "none",
   mood = "happy",
   idle = "wobble",
+  solo = false,
   class: extra,
 } = Astro.props;
 ---
@@ -31,6 +34,7 @@ const {
   data-weapon={weapon}
   data-mood={mood}
   data-idle={idle}
+  data-solo={solo ? "" : undefined}
   role="img"
   aria-label={`Unidad del equipo ${team.toUpperCase()}`}
 >

@@ -14,6 +14,11 @@
 // cada hueso se funden en una sola malla (pocas llamadas de dibujo por
 // unidad). Se anima a 30 cuadros por segundo, que además va con el estilo PS1.
 //
+// Excepción: las unidades con data-solo (las dos del hero, que es lo primero
+// que se ve y se mueven por la pantalla con CSS a 60 fps) tienen su propio
+// WebGL, se dibujan directo en su canvas sin pasar por el atlas ni drawImage,
+// y se actualizan en cada cuadro de la pantalla sin el limitador de fps.
+//
 // Esqueleto: pelvis → (piernas: muslo → rodilla → espinilla) y
 // columna → (brazos: brazo → codo → antebrazo → mano) y cuello → cabeza.
 // Los segmentos son cápsulas que se traslapan, así que las articulaciones no
@@ -492,7 +497,9 @@ const ACTIONS: Action[] = ["wave", "stretch", "shrug", "scratch", "look"];
 interface Unit {
   el: HTMLElement;
   canvas: HTMLCanvasElement;
-  ctx: CanvasRenderingContext2D;
+  ctx: CanvasRenderingContext2D | null;
+  solo: WebGLRenderer | null; // renderer propio de las unidades data-solo
+  drawn: number; // último cuadro dibujado (ms), para suavizar según el tiempo
   opts: Opts;
   model: Model | null;
   idle: Idle;
@@ -673,9 +680,13 @@ function pose(u: Unit, m: Model, now: number) {
     }
   }
 
-  // pupilas: se suavizan hacia donde está el cursor (0.28 a 30 fps ≈ 0.15 a 60)
-  u.look.x += (u.look.tx - u.look.x) * 0.28;
-  u.look.y += (u.look.ty - u.look.y) * 0.28;
+  // pupilas: se suavizan hacia donde está el cursor según el tiempo, así se
+  // mueven igual a 10, 30 o 60 fps (k = 0.28 a 30 fps, como antes)
+  const dt = u.drawn ? Math.min(now - u.drawn, 100) : 1000 / 30;
+  u.drawn = now;
+  const k = 1 - Math.exp(-dt / 100);
+  u.look.x += (u.look.tx - u.look.x) * k;
+  u.look.y += (u.look.ty - u.look.y) * k;
   for (const { mesh: p, r } of m.pupils) {
     p.position.set(u.look.x * r * 0.4, -u.look.y * r * 0.4, r * 0.62);
   }
@@ -718,8 +729,22 @@ function init() {
   const dpr = 1;
   const start = performance.now();
 
+  const soloRenderer = (canvas: HTMLCanvasElement) => {
+    try {
+      const r = new WebGLRenderer({ canvas, antialias: false, alpha: true, stencil: false, powerPreference: "low-power" });
+      r.setPixelRatio(1);
+      r.setClearColor(0x000000, 0);
+      r.sortObjects = false;
+      return r;
+    } catch {
+      return null; // sin otro contexto disponible: se dibuja por el atlas
+    }
+  };
+
   const units: Unit[] = els.map((el, i) => {
     const canvas = el.querySelector("canvas")!;
+    // un canvas solo admite un tipo de contexto: WebGL propio o 2D para el atlas
+    const solo = "solo" in el.dataset ? soloRenderer(canvas) : null;
     const d = el.dataset;
     const opts: Opts = {
       team: (d.team as Team) || "a",
@@ -731,7 +756,9 @@ function init() {
     return {
       el,
       canvas,
-      ctx: canvas.getContext("2d")!,
+      ctx: solo ? null : canvas.getContext("2d")!,
+      solo,
+      drawn: 0,
       opts,
       model: null,
       idle: opts.idle,
@@ -757,8 +784,13 @@ function init() {
       const h = Math.max(1, Math.round(u.el.clientHeight * dpr));
       // cambiar el tamaño borra el canvas: solo si de verdad cambió
       if (w !== u.w || h !== u.h) {
-        u.w = u.canvas.width = w;
-        u.h = u.canvas.height = h;
+        u.w = w;
+        u.h = h;
+        if (u.solo) u.solo.setSize(w, h, false);
+        else {
+          u.canvas.width = w;
+          u.canvas.height = h;
+        }
       }
       u.flipped = getComputedStyle(u.el).scale.trim().startsWith("-");
     }
@@ -819,11 +851,21 @@ function init() {
       scene.remove(u.model!.base);
     }
     for (const { u, x, y } of slots) {
-      u.ctx.clearRect(0, 0, u.w, u.h);
-      u.ctx.drawImage(renderer.domElement, x, y, u.w, u.h, 0, 0, u.w, u.h);
+      u.ctx!.clearRect(0, 0, u.w, u.h);
+      u.ctx!.drawImage(renderer.domElement, x, y, u.w, u.h, 0, 0, u.w, u.h);
     }
     return builds;
   };
+
+  // Unidades data-solo: directo a su propio canvas, sin atlas ni copia
+  const drawSolo = (u: Unit, now: number) => {
+    if (!u.model) u.model = instance(u.opts);
+    pose(u, u.model, now);
+    scene.add(u.model.base);
+    u.solo!.render(scene, camera);
+    scene.remove(u.model.base);
+  };
+  const paint = (u: Unit, now: number) => (u.solo ? drawSolo(u, now) : draw([u], now));
 
   // Solo se dibujan las que están en pantalla (y se arman al aparecer)
   const io = new IntersectionObserver(
@@ -831,7 +873,8 @@ function init() {
       for (const e of entries) {
         const u = byEl.get(e.target as HTMLElement)!;
         u.visible = e.isIntersecting;
-        if (u.visible && reduced) draw([u], 0);
+        if (!u.visible) u.drawn = 0; // al volver no hay un salto en la mirada
+        else if (reduced) paint(u, 0);
       }
       wake();
     },
@@ -848,7 +891,7 @@ function init() {
     u.el.addEventListener("click", () => {
       if (!u.ragdoll) u.ragdoll = performance.now();
       u.action = null;
-      if (reduced) draw([u], 0);
+      if (reduced) paint(u, 0);
     });
   }
   // solo se guarda la posición; la mirada se calcula una vez por cuadro
@@ -882,6 +925,7 @@ function init() {
   let cost = 0;
   let changed = 0;
   const visible: Unit[] = [];
+  const shared: Unit[] = [];
   function wake() {
     if (!reduced && !raf && units.some((u) => u.visible)) raf = requestAnimationFrame(loop);
   }
@@ -893,19 +937,26 @@ function init() {
       return;
     }
     raf = requestAnimationFrame(loop);
-    if (now - last < 1000 / FPS_STEPS[level] - 2) return;
-    last = now;
     aim();
     // sin cursor un rato: miran de un lado a otro solos
     if (now - lastMove > 2500) {
-      for (const u of units) {
+      for (const u of visible) {
         u.look.tx = Math.sin(now / 1300 + u.phase) * 0.7;
         u.look.ty = Math.sin(now / 1700 + u.phase * 2) * 0.25;
       }
     }
+    // las del hero van en cada cuadro de la pantalla
+    shared.length = 0;
+    for (const u of visible) {
+      if (u.solo) drawSolo(u, now);
+      else shared.push(u);
+    }
+    // el resto, por el atlas y con el limitador de fps
+    if (!shared.length || now - last < 1000 / FPS_STEPS[level] - 2) return;
+    last = now;
     const t0 = performance.now();
     // los cuadros donde se armó un modelo no cuentan para medir
-    if (!draw(visible, now)) adapt(performance.now() - t0, now);
+    if (!draw(shared, now)) adapt(performance.now() - t0, now);
   }
 
   // Si dibujar se come mucho del cuadro se baja de fps, y si sobra se sube.
