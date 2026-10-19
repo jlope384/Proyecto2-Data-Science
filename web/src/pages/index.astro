@@ -92,33 +92,33 @@ const challenges = [
 ];
 
 const objectives = [
-  "Realizar una revisión bibliográfica de los algoritmos y arquitecturas usados para modelar preferencias humanas sobre texto generado por LLM.",
-  "Limpiar, preprocesar y explorar el conjunto de datos de Chatbot Arena para identificar patrones y sesgos relevantes, como la longitud de la respuesta, la posición y la identidad del modelo.",
-  "Construir al menos tres modelos con algoritmos distintos y ajustar sus hiperparámetros con validación cruzada.",
-  "Evaluar y comparar los modelos con métricas adecuadas para clasificación probabilística multiclase (log loss, exactitud, F1 macro y calibración), además de su costo computacional.",
-  "Desarrollar una aplicación interactiva que permita explorar los datos, ingresar un prompt con dos respuestas nuevas y visualizar la predicción de cada modelo y su rendimiento en el conjunto de prueba.",
+  "Cuantificar la magnitud de los sesgos de superficie del votante (verbosidad, formato y posición) y contrastarla con lo reportado en la literatura sobre Chatbot Arena y LLM como jueces.",
+  "Determinar si el efecto del formato markdown sobre el voto es independiente de la longitud o solo un reflejo de ella.",
+  "Medir cuánta información sobre la preferencia aportan las características de superficie frente al contenido léxico de las respuestas.",
+  "Identificar bajo qué condiciones los usuarios declaran empate y qué tan separable es esta clase de una preferencia clara.",
+  "Evaluar si es posible producir probabilidades de preferencia bien calibradas y cómo se relaciona la complejidad del modelo con la ganancia predictiva y su costo computacional.",
 ];
 
 const conclusions = [
   {
-    t: "Revisión bibliográfica",
-    d: "La literatura sobre Chatbot Arena, LLM como jueces y modelos de recompensa señaló dos fuentes de información: los sesgos de superficie del votante (longitud, formato y posición) y la calidad del contenido. Con base en ello se eligió una progresión de algoritmos viable sin GPU y se documentó el enfoque de mayor rendimiento (transformers ajustados) como siguiente paso.",
+    t: "Los sesgos existen, pero con pesos muy distintos",
+    d: "La verbosidad es el sesgo dominante: la respuesta más larga gana el 61.5 % de las batallas decididas, y la proporción crece de forma monótona con la razón de longitudes (de 49.5 % si son casi iguales a 68.7 % si una es 5 veces más larga). El sesgo de posición es real pero mínimo (A gana 50.5 % frente a 49.5 %, p = 0.038). Esto confirma con datos reales lo reportado por Zheng et al. (2023).",
   },
   {
-    t: "Limpieza, preprocesamiento y exploración",
-    d: "Se limpió el conjunto (57,470 batallas tras eliminar 7 duplicados) y se derivaron 18 variables, incluidas las comparativas A–B. El EDA identificó el sesgo de verbosidad (la respuesta más larga gana el 61.5 % de las batallas decididas), un sesgo de formato ligado a la longitud, un sesgo de posición leve y el gran peso de la identidad del modelo, que no se usó por no estar disponible al predecir.",
+    t: "El formato es en gran parte un reflejo de la longitud",
+    d: "La respuesta con más markdown gana ~46 % frente a ~27 %, pero en los modelos su peso cae mucho al controlar por longitud: las respuestas con listas y negritas ganan sobre todo porque son más largas, no por el formato en sí.",
   },
   {
-    t: "Construcción y ajuste de modelos",
-    d: "Se construyeron tres algoritmos distintos —regresión logística estructural, regresión logística con TF-IDF y HistGradientBoosting— además de una línea base. Se ajustaron con GridSearchCV y validación cruzada estratificada, y la calibración sigmoide fue el ajuste de mayor impacto.",
+    t: "La superficie da el piso, el contenido es el techo",
+    d: "Ninguna variable de superficie pasa de |ρ| = 0.24 con el voto. Aun así, solo con ellas la log loss baja de 1.0972 a 1.0654 (LogReg) o a 1.0460 (HistGB, con interacciones no lineales). Agregar el contenido con TF-IDF lleva a 1.0414: una mejora real pero chica, porque la bolsa de palabras no captura la calidad del razonamiento. La preferencia humana depende sobre todo de un contenido que requiere representaciones semánticas.",
   },
   {
-    t: "Evaluación y comparación",
-    d: "Todos los modelos superan al azar. El mejor (LogReg TF-IDF + estructura) obtiene una log loss de 1.0414 y una exactitud de 47.3 %, frente a 1.0972 y 34.9 % de la línea base; HistGB ajustado logra casi lo mismo (1.0460) en unas 13 veces menos tiempo y reconoce mejor los empates.",
+    t: "El empate es la clase menos separable",
+    d: "Los empates se concentran cuando las respuestas tienen longitudes parecidas (37.7 % con razón < 1.1 y 74.7 % si son idénticas) y bajan a ~25 % cuando una es mucho más larga. Ningún modelo los reconoce bien (exhaustividad de 0.05 a 0.34): un empate depende de que ambas respuestas sean igual de buenas, y eso no se ve en la superficie.",
   },
   {
-    t: "Aplicación",
-    d: "La aplicación en Streamlit preprocesa entradas nuevas de forma automática, permite usar uno o todos los modelos, cuenta la historia de los datos y muestra el rendimiento con gráficas interactivas que el usuario puede ocultar.",
+    t: "Calibrar importa más que acertar; la complejidad rinde poco",
+    d: "El modelo TF-IDF sin regularizar acertaba más pero tenía peor log loss que la línea base por sobreconfianza. Con regularización fuerte y calibración sigmoide pasó a ser el mejor, con probabilidades bien calibradas entre 0.1 y 0.45. Frente a HistGB, el TF-IDF tarda unas 13 veces más (83.5 s contra 6.2 s) para mejorar solo 0.005 en log loss: el siguiente salto exige otro tipo de representación, no más del mismo.",
   },
 ];
 
@@ -185,8 +185,9 @@ const futureWork = [
 
       <Section id="objetivos" num="1-2" kicker="Objetivos de la misión" title="Qué buscamos">
         <p data-reveal>
-          <strong>General:</strong> predecir la preferencia humana mejor que el azar,
-          es decir, con una log-loss menor que ln(3) ≈ 1.099.
+          <strong>General:</strong> determinar en qué medida la preferencia humana entre
+          dos respuestas de LLM puede predecirse a partir de su texto, y qué factores la
+          explican: sesgos de superficie o calidad del contenido.
         </p>
         <ul class="quests" data-stagger>
           {objectives.map((o) => (
